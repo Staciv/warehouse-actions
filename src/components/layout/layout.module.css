@@ -186,7 +186,7 @@
   .app {
     grid-template-columns: 1fr;
     gap: 12px;
-    padding: 12px 10px calc(182px + env(safe-area-inset-bottom));
+    padding: 12px 10px calc(20px + env(safe-area-inset-bottom));
   }
 
   .sidebar {
@@ -215,9 +215,9 @@
   }
 
   .mobileBottomNav {
-    position: fixed;
-    left: 10px;
-    right: 10px;
+    position: sticky;
+    left: auto;
+    right: auto;
     bottom: calc(12px + env(safe-area-inset-bottom));
     z-index: 30;
     display: flex;
@@ -229,10 +229,13 @@
     backdrop-filter: blur(14px);
     background: linear-gradient(155deg, rgba(20, 42, 72, 0.78), rgba(10, 24, 46, 0.74));
     box-shadow: var(--gx-shadow-md);
+    width: 100%;
+    margin-top: 12px;
   }
 
   .mobileBottomNavAdmin {
     flex-wrap: wrap;
+    row-gap: 8px;
   }
 
   .mobileBottomNavAdmin .mobileNavLink,
@@ -327,9 +330,9 @@
 
   .mobileBottomNavAdmin .mobileNavLink,
   .mobileBottomNavAdmin .mobileNavActive {
-    flex-basis: calc(33.333% - 7px);
+    flex-basis: calc(25% - 6px);
     font-size: 12px;
-    padding: 10px 8px;
+    padding: 9px 6px;
   }
 
   .mobileLang {
@@ -342,5 +345,13 @@
 
   .workerMain {
     padding-bottom: 44px;
+  }
+}
+
+@media (max-width: 420px) {
+  .mobileBottomNavAdmin .mobileNavLink,
+  .mobileBottomNavAdmin .mobileNavActive {
+    font-size: 11px;
+    padding: 8px 5px;
   }
 }

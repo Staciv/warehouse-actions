@@ -108,6 +108,10 @@ p {
   min-width: 0;
 }
 
+.rowActions {
+  width: 100%;
+}
+
 .formGrid {
   display: grid;
   gap: var(--gx-space-3);
@@ -142,5 +146,15 @@ p {
   .inlineActions {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .rowActions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .rowActions > * {
+    width: 100%;
   }
 }

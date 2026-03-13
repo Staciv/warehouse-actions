@@ -211,10 +211,13 @@ export const VehiclesPage = () => {
                   <td data-label="Data">{formatDate(row.arrivalDate)}</td>
                   <td data-label="Godzina">{row.arrivalTime || '—'}</td>
                   <td data-label="Akcje">
-                    <div className="stack">
+                    <div className={`stack ${styles.mobileActionList}`}>
                       {row.tasks.map((task) => (
-                        <div key={task.id}>
-                          <Link to={`/actions/${task.id}`}>{task.actionTypeName}</Link> <StatusBadge status={task.status} />
+                        <div key={task.id} className={styles.mobileActionItem}>
+                          <Link to={`/actions/${task.id}`} className={styles.mobileActionName}>
+                            {task.actionTypeName}
+                          </Link>
+                          <StatusBadge status={task.status} />
                         </div>
                       ))}
                     </div>

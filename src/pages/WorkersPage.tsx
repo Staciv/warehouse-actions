@@ -149,7 +149,7 @@ export const WorkersPage = () => {
                   <td data-label="Status">{row.isActive ? 'active' : 'inactive'}</td>
                   <td data-label="Dostępność">{workerAvailabilityLabel(row.availabilityStatus)}</td>
                   <td data-label="Akcje">
-                    <div className="inlineActions">
+                    <div className="inlineActions rowActions">
                       <Button variant="secondary" onClick={() => toggleActive(row)}>
                         {row.isActive ? 'Dezaktywuj' : 'Aktywuj'}
                       </Button>
