@@ -140,11 +140,15 @@
 .mobileNavActive {
   white-space: nowrap;
   text-decoration: none;
-  font-size: 12px;
-  padding: 9px 12px;
+  font-size: 13px;
+  padding: 11px 12px;
+  min-height: 44px;
   border-radius: 12px;
   border: 1px solid transparent;
   color: #c7d9ef;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: background var(--gx-transition), color var(--gx-transition), border-color var(--gx-transition);
 }
 
@@ -201,7 +205,7 @@
     z-index: 30;
     display: flex;
     gap: 8px;
-    overflow-x: auto;
+    overflow: hidden;
     padding: 8px;
     border: 1px solid rgba(184, 215, 255, 0.24);
     border-radius: 16px;
@@ -210,9 +214,18 @@
     box-shadow: var(--gx-shadow-md);
   }
 
-  .mobileBottomNav::-webkit-scrollbar {
-    height: 0;
-    width: 0;
+  .mobileBottomNavAdmin {
+    flex-wrap: wrap;
+  }
+
+  .mobileBottomNavAdmin .mobileNavLink,
+  .mobileBottomNavAdmin .mobileNavActive {
+    flex: 1 1 calc(25% - 6px);
+  }
+
+  .mobileBottomNavWorker .mobileNavLink,
+  .mobileBottomNavWorker .mobileNavActive {
+    flex: 1 1 calc(50% - 6px);
   }
 
   .mobileLogout {
@@ -255,5 +268,19 @@
 
   .appTitle {
     font-size: 14px;
+  }
+
+  .mobileBottomNav {
+    left: 8px;
+    right: 8px;
+    gap: 6px;
+    padding: 7px;
+  }
+
+  .mobileBottomNavAdmin .mobileNavLink,
+  .mobileBottomNavAdmin .mobileNavActive {
+    flex-basis: calc(33.333% - 6px);
+    font-size: 12px;
+    padding: 10px 8px;
   }
 }

@@ -180,7 +180,7 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 720px;
+  min-width: 0;
 }
 
 .table th,
@@ -284,7 +284,7 @@
   }
 
   .button {
-    width: 100%;
+    width: auto;
     min-height: 44px;
     padding: 11px 14px;
     font-size: 14px;
@@ -311,13 +311,11 @@
     font-size: 24px;
   }
 
-  .table {
-    min-width: 640px;
-  }
-
   .table th,
   .table td {
     font-size: 12px;
     padding: 9px 8px;
+    white-space: normal;
+    word-break: break-word;
   }
 }

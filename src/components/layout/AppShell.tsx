@@ -47,7 +47,7 @@ export const AppShell = () => {
         <main className={styles.workerMain}>
           <Outlet />
         </main>
-        <nav className={styles.mobileBottomNav}>
+        <nav className={`${styles.mobileBottomNav} ${styles.mobileBottomNavWorker}`}>
           {workerLinks.map((link) => (
             <NavLink key={link.to} to={link.to} className={({ isActive }) => (isActive ? styles.mobileNavActive : styles.mobileNavLink)}>
               {link.label}
@@ -91,7 +91,7 @@ export const AppShell = () => {
         </header>
         <Outlet />
       </main>
-      <nav className={styles.mobileBottomNav}>
+      <nav className={`${styles.mobileBottomNav} ${styles.mobileBottomNavAdmin}`}>
         {adminLinks.map((link) => (
           <NavLink key={link.to} to={link.to} className={({ isActive }) => (isActive ? styles.mobileNavActive : styles.mobileNavLink)}>
             {link.label}

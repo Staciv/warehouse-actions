@@ -52,6 +52,12 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+@media (max-width: 900px) {
+  body {
+    background-attachment: scroll;
+  }
+}
+
 a {
   color: var(--gx-info);
   text-decoration: none;
