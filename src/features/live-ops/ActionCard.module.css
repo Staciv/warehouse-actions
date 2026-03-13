@@ -17,12 +17,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
 }
 
 .title {
   font-size: 16px;
   font-weight: 700;
   color: #f2f8ff;
+  flex: 1 1 auto;
   min-width: 0;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -40,6 +42,7 @@
 .badge {
   display: inline-flex;
   align-items: center;
+  flex: 0 0 auto;
   border: 1px solid rgba(164, 198, 240, 0.36);
   border-radius: 999px;
   padding: 5px 10px;
@@ -92,5 +95,26 @@
 
   .title {
     font-size: 15px;
+  }
+
+  .titleRow {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .badge {
+    max-width: 100%;
+  }
+
+  .sub {
+    display: grid;
+    gap: 4px;
+  }
+
+  .sub span {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }

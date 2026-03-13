@@ -30,9 +30,30 @@
   color: #d4e3f8;
   font-size: 12px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .percent {
   font-weight: 700;
   color: #f0f7ff;
+}
+
+@media (max-width: 768px) {
+  .meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 10px;
+    align-items: center;
+  }
+
+  .meta span {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .percent {
+    grid-column: 1 / -1;
+  }
 }

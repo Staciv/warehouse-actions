@@ -86,7 +86,7 @@
 }
 
 .workerShell {
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: 14px 14px 18px;
 }
 
@@ -129,7 +129,7 @@
 }
 
 .workerMain {
-  padding: 14px 4px 8px;
+  padding: 14px 4px 20px;
 }
 
 .userMeta {
@@ -252,7 +252,7 @@
   }
 
   .workerShell {
-    padding: 10px 10px calc(112px + env(safe-area-inset-bottom));
+    padding: 10px 10px calc(132px + env(safe-area-inset-bottom));
   }
 
   .workerTop {
@@ -271,7 +271,7 @@
   }
 
   .workerMain {
-    padding: 12px 2px 4px;
+    padding: 12px 2px 32px;
   }
 }
 
@@ -303,6 +303,7 @@
     right: 8px;
     gap: 6px;
     padding: 9px 8px;
+    bottom: calc(14px + env(safe-area-inset-bottom));
   }
 
   .mobileBottomNavAdmin .mobileNavLink,
@@ -314,5 +315,13 @@
 
   .mobileLang {
     min-width: 102px;
+  }
+
+  .workerShell {
+    padding-bottom: calc(158px + env(safe-area-inset-bottom));
+  }
+
+  .workerMain {
+    padding-bottom: 44px;
   }
 }
