@@ -112,6 +112,11 @@ p {
   width: 100%;
 }
 
+.rowActions button {
+  white-space: normal;
+  line-height: 1.2;
+}
+
 .formGrid {
   display: grid;
   gap: var(--gx-space-3);

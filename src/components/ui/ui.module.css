@@ -343,10 +343,10 @@
   .table td {
     font-size: 13px;
     padding: 11px 10px;
-    white-space: nowrap;
-    word-break: keep-all;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    word-break: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
 }
 
@@ -378,7 +378,7 @@
     gap: 10px;
     border-bottom: 1px solid rgba(176, 207, 244, 0.12);
     padding: 11px 12px;
-    align-items: center;
+    align-items: start;
     min-height: 46px;
     min-width: 0;
   }
@@ -401,9 +401,17 @@
 
   .table tbody td > * {
     min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .table tbody td a,
+  .table tbody td span,
+  .table tbody td div {
+    max-width: 100%;
   }
 
   .table tbody td[data-label='']::before {

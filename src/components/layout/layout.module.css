@@ -186,7 +186,7 @@
   .app {
     grid-template-columns: 1fr;
     gap: 12px;
-    padding: 12px 10px calc(20px + env(safe-area-inset-bottom));
+    padding: 14px 14px calc(20px + env(safe-area-inset-bottom));
   }
 
   .sidebar {
@@ -267,7 +267,7 @@
   }
 
   .workerShell {
-    padding: 10px 10px calc(132px + env(safe-area-inset-bottom));
+    padding: 12px 14px calc(132px + env(safe-area-inset-bottom));
   }
 
   .workerTop {
@@ -314,10 +314,10 @@
   }
 
   .mobileBottomNav {
-    left: 8px;
-    right: 8px;
+    left: 0;
+    right: 0;
     gap: 6px;
-    padding: 9px 8px;
+    padding: 10px;
     bottom: calc(14px + env(safe-area-inset-bottom));
   }
 
