@@ -67,10 +67,10 @@ export const WorkerCompletedPage = () => {
 
       <Card>
         <div className="formGrid">
-          <Field label="Data od">
+          <Field label={t('filters.fromDate')}>
             <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
           </Field>
-          <Field label="Data do">
+          <Field label={t('filters.toDate')}>
             <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
           </Field>
         </div>
@@ -79,15 +79,15 @@ export const WorkerCompletedPage = () => {
       <Card>
         <div className="formGrid">
           <div>
-            <div className="kpi">Wykonane sesje</div>
+            <div className="kpi">{t('page.workerCompleted.sessions')}</div>
             <strong>{loader.data?.length ?? 0}</strong>
           </div>
           <div>
-            <div className="kpi">Wykonane palety</div>
+            <div className="kpi">{t('page.workerCompleted.pallets')}</div>
             <strong>{totalPallets}</strong>
           </div>
           <div>
-            <div className="kpi">Czas pracy</div>
+            <div className="kpi">{t('page.workerCompleted.workTime')}</div>
             <strong>{formatMinutes(totalMinutes)}</strong>
           </div>
         </div>
@@ -95,30 +95,30 @@ export const WorkerCompletedPage = () => {
 
       <Card>
         {loader.loading ? <Loader /> : null}
-        {!loader.loading && (loader.data?.length ?? 0) === 0 ? <EmptyState text="Brak wykonań w wybranym okresie" /> : null}
+        {!loader.loading && (loader.data?.length ?? 0) === 0 ? <EmptyState text={t('page.workerCompleted.empty')} /> : null}
         {!loader.loading && (loader.data?.length ?? 0) > 0 ? (
           <Table>
             <thead>
               <tr>
-                <th>Data</th>
-                <th>Rampa</th>
-                <th>Pojazd</th>
-                <th>Typ akcji</th>
-                <th>Przewoźnik</th>
-                <th>Palety</th>
-                <th>Czas trwania</th>
+                <th>{t('page.workerCompleted.table.date')}</th>
+                <th>{t('page.workerCompleted.table.ramp')}</th>
+                <th>{t('page.workerCompleted.table.vehicle')}</th>
+                <th>{t('page.workerCompleted.table.actionType')}</th>
+                <th>{t('page.workerCompleted.table.carrier')}</th>
+                <th>{t('page.workerCompleted.table.pallets')}</th>
+                <th>{t('page.workerCompleted.table.duration')}</th>
               </tr>
             </thead>
             <tbody>
               {(loader.data ?? []).map((row) => (
                 <tr key={row.session.id}>
-                  <td data-label="Data">{formatDateTime(row.session.startedAt)}</td>
-                  <td data-label="Rampa">{row.session.rampNumber}</td>
-                  <td data-label="Pojazd">{row.vehicleCode}</td>
-                  <td data-label="Typ akcji">{row.actionTypeName}</td>
-                  <td data-label="Przewoźnik">{row.carrierName}</td>
-                  <td data-label="Palety">{row.session.palletsCompletedInSession}</td>
-                  <td data-label="Czas trwania">{formatMinutes(row.session.durationMinutes)}</td>
+                  <td data-label={t('page.workerCompleted.table.date')}>{formatDateTime(row.session.startedAt)}</td>
+                  <td data-label={t('page.workerCompleted.table.ramp')}>{row.session.rampNumber}</td>
+                  <td data-label={t('page.workerCompleted.table.vehicle')}>{row.vehicleCode}</td>
+                  <td data-label={t('page.workerCompleted.table.actionType')}>{row.actionTypeName}</td>
+                  <td data-label={t('page.workerCompleted.table.carrier')}>{row.carrierName}</td>
+                  <td data-label={t('page.workerCompleted.table.pallets')}>{row.session.palletsCompletedInSession}</td>
+                  <td data-label={t('page.workerCompleted.table.duration')}>{formatMinutes(row.session.durationMinutes)}</td>
                 </tr>
               ))}
             </tbody>
