@@ -123,6 +123,7 @@
 .field {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .label {
@@ -195,6 +196,7 @@
   vertical-align: middle;
   min-width: 0;
   word-break: keep-all;
+  overflow-wrap: normal;
 }
 
 .table tbody tr {
@@ -268,13 +270,13 @@
 @media (max-width: 900px) {
   .card {
     border-radius: 18px;
-    padding: 14px;
+    padding: 16px;
   }
 
   .table th,
   .table td {
     font-size: 13px;
-    padding: 10px 9px;
+    padding: 11px 10px;
   }
 
   .summaryValue {
@@ -285,7 +287,7 @@
 @media (max-width: 640px) {
   .card {
     border-radius: 16px;
-    padding: 12px;
+    padding: 14px;
   }
 
   .button {
@@ -293,6 +295,7 @@
     min-height: 44px;
     padding: 11px 14px;
     font-size: 14px;
+    flex-shrink: 0;
   }
 
   .input,
@@ -309,7 +312,7 @@
 
   .summaryGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 12px;
   }
 
   .summaryValue {
@@ -318,11 +321,12 @@
 
   .table th,
   .table td {
-    font-size: 12px;
-    padding: 9px 8px;
-    white-space: normal;
+    font-size: 13px;
+    padding: 11px 10px;
+    white-space: nowrap;
     word-break: keep-all;
-    overflow-wrap: break-word;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
@@ -337,24 +341,26 @@
 
   .table tbody {
     display: grid;
-    gap: 10px;
+    gap: 12px;
   }
 
   .table tbody tr {
     display: block;
     border: 1px solid rgba(176, 207, 244, 0.2);
-    border-radius: 14px;
+    border-radius: 16px;
     background: rgba(20, 41, 70, 0.34);
     overflow: hidden;
   }
 
   .table tbody td {
     display: grid;
-    grid-template-columns: minmax(96px, 122px) minmax(0, 1fr);
-    gap: 8px;
+    grid-template-columns: minmax(108px, 132px) minmax(0, 1fr);
+    gap: 10px;
     border-bottom: 1px solid rgba(176, 207, 244, 0.12);
-    padding: 9px 10px;
+    padding: 11px 12px;
     align-items: center;
+    min-height: 46px;
+    min-width: 0;
   }
 
   .table tbody td:last-child {
@@ -364,8 +370,17 @@
   .table tbody td::before {
     content: attr(data-label);
     color: var(--gx-text-muted);
-    font-size: 11px;
+    font-size: 12px;
+    font-weight: 600;
     letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .table tbody td > * {
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -373,5 +388,16 @@
 
   .table tbody td[data-label='']::before {
     content: '';
+  }
+
+  .row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+
+  .row > * {
+    flex-shrink: 0;
   }
 }

@@ -25,6 +25,12 @@
   --gx-shadow-md: 0 12px 36px rgba(4, 10, 22, 0.34);
   --gx-blur: blur(16px);
   --gx-transition: 220ms ease;
+  --gx-space-1: 4px;
+  --gx-space-2: 8px;
+  --gx-space-3: 12px;
+  --gx-space-4: 16px;
+  --gx-space-5: 20px;
+  --gx-space-6: 24px;
 }
 
 * {
@@ -84,7 +90,7 @@ p {
 
 .stack {
   display: grid;
-  gap: 14px;
+  gap: var(--gx-space-4);
 }
 
 .truncateText {
@@ -104,7 +110,7 @@ p {
 
 .formGrid {
   display: grid;
-  gap: 12px;
+  gap: var(--gx-space-3);
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
 }
 
@@ -120,8 +126,13 @@ p {
 }
 
 @media (max-width: 720px) {
+  .stack {
+    gap: var(--gx-space-3);
+  }
+
   .formGrid {
     grid-template-columns: 1fr;
+    gap: var(--gx-space-3);
   }
 
   .inlineActions {

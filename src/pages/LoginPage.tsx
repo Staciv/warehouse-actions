@@ -37,7 +37,7 @@ export const LoginPage = () => {
   };
 
   return (
-    <div className={styles.page} style={{ maxWidth: 420, margin: '80px auto' }}>
+    <div className={`${styles.page} ${styles.loginPage}`}>
       <Card>
         <form onSubmit={submit} className="stack">
           <div>

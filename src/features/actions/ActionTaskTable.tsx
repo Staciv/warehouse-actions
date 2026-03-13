@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Table } from '../../components/ui/Table';
 import { formatDate } from '../../shared/utils/date';
 import type { ActionTask } from '../../types/domain';
@@ -7,9 +7,16 @@ import styles from './ActionTaskTable.module.css';
 
 interface Props {
   tasks: ActionTask[];
+  rowClickable?: boolean;
 }
 
-export const ActionTaskTable = ({ tasks }: Props) => {
+export const ActionTaskTable = ({ tasks, rowClickable = false }: Props) => {
+  const navigate = useNavigate();
+
+  const openTask = (taskId: string) => {
+    navigate(`/actions/${taskId}`);
+  };
+
   return (
     <Table>
       <thead>
@@ -26,11 +33,22 @@ export const ActionTaskTable = ({ tasks }: Props) => {
       </thead>
       <tbody>
         {tasks.map((task) => (
-          <tr key={task.id}>
+          <tr
+            key={task.id}
+            className={rowClickable ? styles.clickableRow : undefined}
+            onClick={rowClickable ? () => openTask(task.id) : undefined}
+            onKeyDown={rowClickable ? (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openTask(task.id);
+              }
+            } : undefined}
+            tabIndex={rowClickable ? 0 : undefined}
+            role={rowClickable ? 'button' : undefined}
+            aria-label={rowClickable ? `Otwórz akcję ${task.vehicleCode}` : undefined}
+          >
             <td data-label="Pojazd">
-              <Link to={`/actions/${task.id}`} className={styles.truncate}>
-                {task.vehicleCode}
-              </Link>
+              <span className={styles.truncate}>{task.vehicleCode}</span>
             </td>
             <td data-label="Przewoźnik">
               <span className={styles.truncate}>{task.carrierName}</span>

@@ -4,6 +4,12 @@
   min-width: 0;
 }
 
+.loginPage {
+  width: min(100%, 440px);
+  margin: 0 auto;
+  padding-top: 72px;
+}
+
 .titleRow {
   display: flex;
   justify-content: space-between;
@@ -39,6 +45,11 @@
 @media (max-width: 640px) {
   .page {
     gap: 12px;
+  }
+
+  .loginPage {
+    width: 100%;
+    padding-top: 24px;
   }
 
   .titleRow {

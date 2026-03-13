@@ -77,8 +77,9 @@ export const ActionsPage = () => {
     setFilters(initialFilters);
   }, [initialFilters]);
 
-  const { tasks, loading, error, reload } = useTasks(filters);
   const canManage = user ? isAdminRole(user.role) : false;
+  const effectiveFilters = canManage ? filters : defaultFilters;
+  const { tasks, loading, error, reload } = useTasks(effectiveFilters);
 
   const workerTasks = useMemo(() => tasks.filter((task) => isTaskAvailableForWorkers(task)), [tasks]);
 
@@ -86,7 +87,7 @@ export const ActionsPage = () => {
 
   const createTask = async (payload: CreateActionTaskPayload) => {
     await getRepository().createActionTask(payload, user);
-    await Promise.all([reload(filters), reloadRefs()]);
+    await Promise.all([reload(effectiveFilters), reloadRefs()]);
     setShowCreate(false);
   };
 
@@ -114,7 +115,7 @@ export const ActionsPage = () => {
         />
       ) : null}
 
-      <ActionFilters filters={filters} carriers={carriers} actionTypes={actionTypes} onChange={setFilters} />
+      {canManage ? <ActionFilters filters={filters} carriers={carriers} actionTypes={actionTypes} onChange={setFilters} /> : null}
 
       <Card>
         {loading || refsLoading ? <Loader /> : null}
@@ -123,7 +124,7 @@ export const ActionsPage = () => {
           (canManage ? tasks : workerTasks).length === 0 ? (
             <EmptyState text="Brak zadań dla bieżących filtrów" />
           ) : (
-            <ActionTaskTable tasks={canManage ? tasks : workerTasks} />
+            <ActionTaskTable tasks={canManage ? tasks : workerTasks} rowClickable={!canManage} />
           )
         ) : null}
       </Card>
