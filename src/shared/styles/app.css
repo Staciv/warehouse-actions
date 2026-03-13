@@ -114,6 +114,10 @@ p {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
 }
 
+.formGrid > * {
+  min-width: 0;
+}
+
 .kpi {
   color: var(--gx-text-muted);
   font-size: 12px;

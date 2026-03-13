@@ -90,7 +90,10 @@
 .input,
 .select,
 .textarea {
+  display: block;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   border: 1px solid rgba(182, 214, 255, 0.28);
   border-radius: var(--gx-radius-sm);
   padding: 11px 12px;
@@ -100,6 +103,23 @@
   backdrop-filter: blur(8px);
   transition: border-color var(--gx-transition), box-shadow var(--gx-transition), background var(--gx-transition);
   color-scheme: dark;
+}
+
+.input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+}
+
+.input[type='date']::-webkit-datetime-edit {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .input::placeholder,
