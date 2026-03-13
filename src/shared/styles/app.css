@@ -87,6 +87,21 @@ p {
   gap: 14px;
 }
 
+.truncateText {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inlineActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
 .formGrid {
   display: grid;
   gap: 12px;
@@ -107,5 +122,10 @@ p {
 @media (max-width: 720px) {
   .formGrid {
     grid-template-columns: 1fr;
+  }
+
+  .inlineActions {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }

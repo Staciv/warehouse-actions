@@ -25,7 +25,7 @@ export const LoginPage = () => {
     setError('');
     setLoading(true);
     try {
-      await login(loginValue, password);
+      await login(loginValue.trim(), password);
       navigate(ROUTES.dashboard);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка входа');
@@ -44,10 +44,27 @@ export const LoginPage = () => {
           </div>
 
           <Field label="Логин">
-            <Input value={loginValue} onChange={(e) => setLoginValue(e.target.value)} required />
+            <Input
+              value={loginValue}
+              onChange={(e) => setLoginValue(e.target.value)}
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              required
+            />
           </Field>
           <Field label="Пароль">
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              required
+            />
           </Field>
 
           {error ? <div style={{ color: '#c63d3d' }}>{error}</div> : null}

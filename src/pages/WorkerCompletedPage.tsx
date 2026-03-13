@@ -109,12 +109,12 @@ export const WorkerCompletedPage = () => {
             <tbody>
               {(loader.data ?? []).map((row) => (
                 <tr key={row.session.id}>
-                  <td>{formatDateTime(row.session.startedAt)}</td>
-                  <td>{row.vehicleCode}</td>
-                  <td>{row.actionTypeName}</td>
-                  <td>{row.carrierName}</td>
-                  <td>{row.session.palletsCompletedInSession}</td>
-                  <td>{formatMinutes(row.session.durationMinutes)}</td>
+                  <td data-label="Дата">{formatDateTime(row.session.startedAt)}</td>
+                  <td data-label="Машина">{row.vehicleCode}</td>
+                  <td data-label="Тип акции">{row.actionTypeName}</td>
+                  <td data-label="Перевозчик">{row.carrierName}</td>
+                  <td data-label="Палеты">{row.session.palletsCompletedInSession}</td>
+                  <td data-label="Длительность">{formatMinutes(row.session.durationMinutes)}</td>
                 </tr>
               ))}
             </tbody>

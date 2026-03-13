@@ -169,7 +169,7 @@
   .app {
     grid-template-columns: 1fr;
     gap: 12px;
-    padding: 12px 10px calc(82px + env(safe-area-inset-bottom));
+    padding: 12px 10px calc(168px + env(safe-area-inset-bottom));
   }
 
   .sidebar {
@@ -233,7 +233,7 @@
   }
 
   .workerShell {
-    padding: 10px 10px calc(82px + env(safe-area-inset-bottom));
+    padding: 10px 10px calc(98px + env(safe-area-inset-bottom));
   }
 
   .workerTop {

@@ -217,13 +217,13 @@ export const ActionDetailsPage = () => {
             <tbody>
               {sessions.map((session) => (
                 <tr key={session.id}>
-                  <td>{session.workerName}</td>
-                  <td>
+                  <td data-label="Работник">{session.workerName}</td>
+                  <td data-label="Время">
                     {formatDateTime(session.startedAt)} - {formatDateTime(session.endedAt)}
                   </td>
-                  <td>{session.palletsCompletedInSession}</td>
-                  <td>{formatMinutes(session.durationMinutes)}</td>
-                  <td>{session.comment || '—'}</td>
+                  <td data-label="Палеты">{session.palletsCompletedInSession}</td>
+                  <td data-label="Длительность">{formatMinutes(session.durationMinutes)}</td>
+                  <td data-label="Комментарий">{session.comment || '—'}</td>
                 </tr>
               ))}
             </tbody>

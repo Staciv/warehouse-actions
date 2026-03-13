@@ -37,6 +37,9 @@
     background var(--gx-transition), color var(--gx-transition);
   backdrop-filter: blur(8px);
   min-height: 40px;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 
 .button:hover {
@@ -190,6 +193,8 @@
   text-align: left;
   font-size: 14px;
   vertical-align: middle;
+  min-width: 0;
+  word-break: keep-all;
 }
 
 .table tbody tr {
@@ -316,6 +321,57 @@
     font-size: 12px;
     padding: 9px 8px;
     white-space: normal;
-    word-break: break-word;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+}
+
+@media (max-width: 768px) {
+  .table {
+    min-width: 0;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .table tbody tr {
+    display: block;
+    border: 1px solid rgba(176, 207, 244, 0.2);
+    border-radius: 14px;
+    background: rgba(20, 41, 70, 0.34);
+    overflow: hidden;
+  }
+
+  .table tbody td {
+    display: grid;
+    grid-template-columns: minmax(96px, 122px) minmax(0, 1fr);
+    gap: 8px;
+    border-bottom: 1px solid rgba(176, 207, 244, 0.12);
+    padding: 9px 10px;
+    align-items: center;
+  }
+
+  .table tbody td:last-child {
+    border-bottom: none;
+  }
+
+  .table tbody td::before {
+    content: attr(data-label);
+    color: var(--gx-text-muted);
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .table tbody td[data-label='']::before {
+    content: '';
   }
 }

@@ -91,11 +91,15 @@ export const ActionTypesPage = () => {
             <tbody>
               {types.map((type) => (
                 <tr key={type.id}>
-                  <td>{type.name}</td>
-                  <td>{type.key}</td>
-                  <td>{type.description}</td>
-                  <td>{type.isActive ? 'active' : 'archived'}</td>
-                  <td>
+                  <td data-label="Название">
+                    <span className="truncateText">{type.name}</span>
+                  </td>
+                  <td data-label="Ключ">
+                    <span className="truncateText">{type.key}</span>
+                  </td>
+                  <td data-label="Описание">{type.description}</td>
+                  <td data-label="Статус">{type.isActive ? 'active' : 'archived'}</td>
+                  <td data-label="Действия">
                     <Button variant="secondary" onClick={() => toggleType(type)}>
                       {type.isActive ? 'Архивировать' : 'Восстановить'}
                     </Button>

@@ -127,9 +127,13 @@ export const CarriersPage = () => {
             <tbody>
               {carriers.map((carrier) => (
                 <tr key={carrier.id}>
-                  <td>{carrier.name}</td>
-                  <td>{carrier.code || '—'}</td>
-                  <td>
+                  <td data-label="Название">
+                    <span className="truncateText">{carrier.name}</span>
+                  </td>
+                  <td data-label="Код">
+                    <span className="truncateText">{carrier.code || '—'}</span>
+                  </td>
+                  <td data-label="Действия">
                     <Button variant="danger" onClick={() => deleteCarrier(carrier)}>
                       Удалить
                     </Button>

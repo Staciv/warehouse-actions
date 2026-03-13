@@ -27,26 +27,36 @@ export const ActionTaskTable = ({ tasks }: Props) => {
       <tbody>
         {tasks.map((task) => (
           <tr key={task.id}>
-            <td>
-              <Link to={`/actions/${task.id}`}>{task.vehicleCode}</Link>
+            <td data-label="Машина">
+              <Link to={`/actions/${task.id}`} className={styles.truncate}>
+                {task.vehicleCode}
+              </Link>
             </td>
-            <td>{task.carrierName}</td>
-            <td>{task.actionTypeName}</td>
-            <td>
+            <td data-label="Перевозчик">
+              <span className={styles.truncate}>{task.carrierName}</span>
+            </td>
+            <td data-label="Тип акции">
+              <span className={styles.truncate}>{task.actionTypeName}</span>
+            </td>
+            <td data-label="Дата">
               <div className={styles.centerCell}>{formatDate(task.arrivalDate)}</div>
             </td>
-            <td>
+            <td data-label="Приоритет">
               <div className={styles.centerCell}>
                 <PriorityBadge priority={task.priority} />
               </div>
             </td>
-            <td>
+            <td data-label="Статус">
               <div className={styles.centerCell}>
                 <StatusBadge status={task.status} />
               </div>
             </td>
-            <td>{task.participantWorkerNames.length > 0 ? task.participantWorkerNames.join(', ') : '—'}</td>
-            <td>
+            <td data-label="Сейчас выполняет">
+              <span className={styles.truncate}>
+                {task.participantWorkerNames.length > 0 ? task.participantWorkerNames.join(', ') : '—'}
+              </span>
+            </td>
+            <td data-label="Палеты">
               {task.completedPallets}/{task.totalPallets ?? '—'} (остаток: {task.remainingPallets})
             </td>
           </tr>

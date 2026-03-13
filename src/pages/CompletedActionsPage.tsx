@@ -195,11 +195,11 @@ export const CompletedActionsPage = () => {
             <tbody>
               {workerSummary.map((item) => (
                 <tr key={item.rowKey}>
-                  <td>{item.workerName}</td>
-                  <td>{item.actionTypesList}</td>
-                  <td>{item.sessionsCount}</td>
-                  <td>{item.totalPallets}</td>
-                  <td>{formatMinutes(item.totalMinutes)}</td>
+                  <td data-label="Работник">{item.workerName}</td>
+                  <td data-label="Типы акций">{item.actionTypesList}</td>
+                  <td data-label="Сессии">{item.sessionsCount}</td>
+                  <td data-label="Палеты">{item.totalPallets}</td>
+                  <td data-label="Часы">{formatMinutes(item.totalMinutes)}</td>
                 </tr>
               ))}
             </tbody>
@@ -226,13 +226,13 @@ export const CompletedActionsPage = () => {
             <tbody>
               {filtered.map(({ session, task }) => (
                 <tr key={session.id}>
-                  <td>{session.workerName}</td>
-                  <td>{task.vehicleCode}</td>
-                  <td>{task.actionTypeName}</td>
-                  <td>{task.carrierName}</td>
-                  <td>{session.palletsCompletedInSession}</td>
-                  <td>{formatMinutes(session.durationMinutes)}</td>
-                  <td>{formatDateTime(session.startedAt)}</td>
+                  <td data-label="Работник">{session.workerName}</td>
+                  <td data-label="Машина">{task.vehicleCode}</td>
+                  <td data-label="Тип акции">{task.actionTypeName}</td>
+                  <td data-label="Перевозчик">{task.carrierName}</td>
+                  <td data-label="Палеты">{session.palletsCompletedInSession}</td>
+                  <td data-label="Длительность">{formatMinutes(session.durationMinutes)}</td>
+                  <td data-label="Время">{formatDateTime(session.startedAt)}</td>
                 </tr>
               ))}
             </tbody>

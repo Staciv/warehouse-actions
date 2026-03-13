@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Field } from '../components/ui/Field';
@@ -168,7 +169,7 @@ export const VehiclesPage = () => {
             </div>
 
             {editError ? <div style={{ color: '#c63d3d' }}>{editError}</div> : null}
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div className="inlineActions">
               <Button type="submit" disabled={savingEdit}>
                 {savingEdit ? 'Сохранение...' : 'Сохранить изменения'}
               </Button>
@@ -199,20 +200,24 @@ export const VehiclesPage = () => {
             <tbody>
               {grouped.map((row) => (
                 <tr key={row.vehicleCode}>
-                  <td>{row.vehicleCode}</td>
-                  <td>{row.carrierName}</td>
-                  <td>{formatDate(row.arrivalDate)}</td>
-                  <td>{row.arrivalTime || '—'}</td>
-                  <td>
+                  <td data-label="Машина">
+                    <span className="truncateText">{row.vehicleCode}</span>
+                  </td>
+                  <td data-label="Перевозчик">
+                    <span className="truncateText">{row.carrierName}</span>
+                  </td>
+                  <td data-label="Дата">{formatDate(row.arrivalDate)}</td>
+                  <td data-label="Время">{row.arrivalTime || '—'}</td>
+                  <td data-label="Акции">
                     <div className="stack">
                       {row.tasks.map((task) => (
                         <div key={task.id}>
-                          <a href={`/actions/${task.id}`}>{task.actionTypeName}</a> <StatusBadge status={task.status} />
+                          <Link to={`/actions/${task.id}`}>{task.actionTypeName}</Link> <StatusBadge status={task.status} />
                         </div>
                       ))}
                     </div>
                   </td>
-                  <td>
+                  <td data-label="Действия">
                     <Button variant="secondary" onClick={() => openEdit(row)}>
                       Редактировать
                     </Button>

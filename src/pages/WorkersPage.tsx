@@ -127,13 +127,17 @@ export const WorkersPage = () => {
             <tbody>
               {users.map((row) => (
                 <tr key={row.id}>
-                  <td>{row.displayName}</td>
-                  <td>{row.login}</td>
-                  <td>{row.role}</td>
-                  <td>{row.isActive ? 'active' : 'inactive'}</td>
-                  <td>{row.availabilityStatus === 'busy' ? 'В работе' : 'Доступен'}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
+                  <td data-label="Сотрудник">
+                    <span className="truncateText">{row.displayName}</span>
+                  </td>
+                  <td data-label="Логин">
+                    <span className="truncateText">{row.login}</span>
+                  </td>
+                  <td data-label="Роль">{row.role}</td>
+                  <td data-label="Статус">{row.isActive ? 'active' : 'inactive'}</td>
+                  <td data-label="Занятость">{row.availabilityStatus === 'busy' ? 'В работе' : 'Доступен'}</td>
+                  <td data-label="Действия">
+                    <div className="inlineActions">
                       <Button variant="secondary" onClick={() => toggleActive(row)}>
                         {row.isActive ? 'Деактивировать' : 'Активировать'}
                       </Button>
