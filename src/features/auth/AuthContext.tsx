@@ -1,0 +1,92 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { SESSION_STORAGE_KEY } from '../../constants/app';
+import type { AuthSession, User } from '../../types/domain';
+import { getRepository } from '../../services/repositories';
+import { toIsoNow } from '../../shared/utils/date';
+
+interface AuthContextValue {
+  user: User | null;
+  loading: boolean;
+  login: (login: string, password: string) => Promise<void>;
+  logout: () => void;
+  refreshUser: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+const parseSession = (): AuthSession | null => {
+  const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as AuthSession;
+  } catch {
+    return null;
+  }
+};
+
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const session = parseSession();
+    if (session?.user) setUser(session.user);
+    setLoading(false);
+  }, []);
+
+  const login = useCallback(async (loginValue: string, password: string) => {
+    const repository = getRepository();
+    const signedInUser = await repository.login({ login: loginValue, password });
+    const session: AuthSession = {
+      user: signedInUser,
+      loginAt: toIsoNow()
+    };
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    setUser(signedInUser);
+  }, []);
+
+  const logout = useCallback(() => {
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    setUser(null);
+  }, []);
+
+  const refreshUser = useCallback(async () => {
+    const session = parseSession();
+    if (!session?.user) return;
+
+    const repository = getRepository();
+    const users = await repository.getUsers();
+    const freshUser = users.find((entry) => entry.id === session.user.id);
+    if (!freshUser || !freshUser.isActive) {
+      logout();
+      return;
+    }
+
+    const nextSession: AuthSession = {
+      user: freshUser,
+      loginAt: session.loginAt
+    };
+
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+    setUser(freshUser);
+  }, [logout]);
+
+  const value = useMemo(
+    () => ({
+      user,
+      loading,
+      login,
+      logout,
+      refreshUser
+    }),
+    [loading, login, logout, refreshUser, user]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used inside AuthProvider');
+  return context;
+};

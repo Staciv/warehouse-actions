@@ -1,16 +1,16 @@
 {
-  "name": "ideas-reminders-pwa",
+  "name": "warehouse-special-operations-mvp",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "dexie": "^4.0.10",
-    "dexie-react-hooks": "^1.1.7",
+    "firebase": "^12.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.1"
@@ -20,7 +20,6 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
     "typescript": "^5.6.3",
-    "vite": "^5.4.9",
-    "vite-plugin-pwa": "^0.20.5"
+    "vite": "^5.4.9"
   }
 }

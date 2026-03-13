@@ -1,14 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { registerSW } from 'virtual:pwa-register';
 import App from './App';
-import './styles/variables.css';
-import './styles/base.css';
-import './styles/glass.css';
-import './styles/grid.css';
-
-registerSW({ immediate: true });
+import './shared/styles/app.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

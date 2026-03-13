@@ -1,0 +1,255 @@
+import type { ActionTask, ActionType, Carrier, User, WorkSession } from '../../types/domain';
+
+export interface SeedUser extends Omit<User, 'passwordHash' | 'createdAt' | 'updatedAt'> {
+  plainPassword: string;
+}
+
+export const seedUsers: SeedUser[] = [
+  {
+    id: 'u-superadmin',
+    firstName: 'Иван',
+    lastName: 'Соколов',
+    displayName: 'Иван Соколов',
+    login: 'superadmin',
+    plainPassword: 'superadmin123',
+    role: 'superadmin',
+    isActive: true,
+    availabilityStatus: 'available'
+  },
+  {
+    id: 'u-admin',
+    firstName: 'Ольга',
+    lastName: 'Миронова',
+    displayName: 'Ольга Миронова',
+    login: 'admin1',
+    plainPassword: 'admin123',
+    role: 'admin',
+    isActive: true,
+    availabilityStatus: 'available'
+  },
+  {
+    id: 'u-worker-1',
+    firstName: 'Павел',
+    lastName: 'Иванов',
+    displayName: 'Павел Иванов',
+    login: 'worker1',
+    plainPassword: 'worker123',
+    role: 'worker',
+    isActive: true,
+    availabilityStatus: 'available'
+  },
+  {
+    id: 'u-worker-2',
+    firstName: 'Дмитрий',
+    lastName: 'Козлов',
+    displayName: 'Дмитрий Козлов',
+    login: 'worker2',
+    plainPassword: 'worker123',
+    role: 'worker',
+    isActive: true,
+    availabilityStatus: 'available'
+  },
+  {
+    id: 'u-worker-3',
+    firstName: 'Марек',
+    lastName: 'Новак',
+    displayName: 'Марек Новак',
+    login: 'worker3',
+    plainPassword: 'worker123',
+    role: 'worker',
+    isActive: true,
+    availabilityStatus: 'available'
+  }
+];
+
+export const seedCarriers: Omit<Carrier, 'createdAt' | 'updatedAt'>[] = [
+  { id: 'c-1', name: 'Baltic Freight', code: 'BF', isActive: true },
+  { id: 'c-2', name: 'EuroTrans Logistic', code: 'ETL', isActive: true },
+  { id: 'c-3', name: 'Nord Cargo', code: 'NC', isActive: true },
+  { id: 'c-4', name: 'Vistula Transport', code: 'VT', isActive: true },
+  { id: 'c-5', name: 'Mazovia Haulage', code: 'MH', isActive: true },
+  { id: 'c-6', name: 'Central EU Trucking', code: 'CET', isActive: true },
+  { id: 'c-7', name: 'Baltic Line Cargo', code: 'BLC', isActive: true },
+  { id: 'c-8', name: 'CASTORAMA SUPPLIER', code: 'CAST', isActive: true },
+  { id: 'c-9', name: 'AMICA HANDEL I MARKETING SPÓŁKA Z O.O.', code: 'AMICA', isActive: true },
+  { id: 'c-10', name: 'FRANKE POLSKA SP. Z O.O.', code: 'FRANKE', isActive: true },
+  { id: 'c-11', name: '3B SPA', code: '3B', isActive: true },
+  { id: 'c-12', name: 'Media Profil SRL', code: 'MPSRL', isActive: true },
+  { id: 'c-13', name: 'Laminex', code: 'LAM', isActive: true },
+  { id: 'c-14', name: 'Firul', code: 'FIR', isActive: true },
+  { id: 'c-15', name: 'SZYNAKA MEBLE SP. Z O.O.', code: 'SZYNAKA', isActive: true },
+  { id: 'c-16', name: 'CT GROUP TOMASZEK SP. Z O.O.', code: 'CTGT', isActive: true },
+  { id: 'c-17', name: 'TUS D.O.O. DEKANI', code: 'TUS', isActive: true },
+  { id: 'c-18', name: 'VIBO', code: 'VIBO', isActive: true }
+];
+
+export const seedActionTypes: Omit<ActionType, 'createdAt' | 'updatedAt'>[] = [
+  {
+    id: 'at-1',
+    key: 'single_to_euro',
+    name: 'Подставление на европалеты + биндование',
+    description: 'Снятие крышек/досок и фиксация груза на европалете',
+    isActive: true
+  },
+  {
+    id: 'at-2',
+    key: 'consolidation',
+    name: 'Консолидация комплектов',
+    description: 'Сборка наборов на одной палете',
+    isActive: true
+  },
+  {
+    id: 'at-3',
+    key: 'slip_sheet',
+    name: 'Slip-sheet / лапами на европалету',
+    description: 'Перестановка после разгрузки с использованием лап',
+    isActive: true
+  },
+  {
+    id: 'at-4',
+    key: 'mix_split',
+    name: 'Микс-палета / разделение артикулов',
+    description: 'Разделение артикулов по отдельным палетам и биндование',
+    isActive: true
+  }
+];
+
+export const seedActionTasks: Omit<ActionTask, 'createdAt' | 'updatedAt'>[] = [
+  {
+    id: 'task-1',
+    carrierId: 'c-1',
+    carrierName: 'Baltic Freight',
+    vehicleCode: 'PL-WA-1201',
+    arrivalDate: '2026-03-13T07:30:00.000Z',
+    arrivalTime: '08:30',
+    actionTypeId: 'at-3',
+    actionTypeName: 'Slip-sheet / лапами на европалету',
+    totalPallets: 80,
+    completedPallets: 30,
+    remainingPallets: 50,
+    status: 'executing',
+    priority: 4,
+    note: 'Контейнер 4B',
+    internalComment: 'Срочно закрыть до 15:00',
+    workerComment: 'Проверить крепления',
+    labels: ['container', 'priority'],
+    canBeSplit: true,
+    participantWorkerIds: ['u-worker-1'],
+    participantWorkerNames: ['Павел Иванов'],
+    createdByUserId: 'u-admin',
+    createdByUserName: 'Ольга Миронова',
+    updatedByUserId: 'u-admin',
+    updatedByUserName: 'Ольга Миронова',
+    archived: false
+  },
+  {
+    id: 'task-2',
+    carrierId: 'c-2',
+    carrierName: 'EuroTrans Logistic',
+    vehicleCode: 'PL-GD-5320',
+    arrivalDate: '2026-03-13T06:20:00.000Z',
+    arrivalTime: '07:20',
+    actionTypeId: 'at-1',
+    actionTypeName: 'Подставление на европалеты + биндование',
+    totalPallets: null,
+    completedPallets: 0,
+    remainingPallets: 0,
+    status: 'planned',
+    priority: 2,
+    note: 'Ожидается avizacja',
+    internalComment: '',
+    workerComment: '',
+    labels: ['waiting-docs'],
+    canBeSplit: true,
+    participantWorkerIds: [],
+    participantWorkerNames: [],
+    createdByUserId: 'u-admin',
+    createdByUserName: 'Ольга Миронова',
+    updatedByUserId: 'u-admin',
+    updatedByUserName: 'Ольга Миронова',
+    archived: false
+  },
+  {
+    id: 'task-3',
+    carrierId: 'c-3',
+    carrierName: 'Nord Cargo',
+    vehicleCode: 'DE-B-9021',
+    arrivalDate: '2026-03-12T11:00:00.000Z',
+    arrivalTime: '12:00',
+    actionTypeId: 'at-2',
+    actionTypeName: 'Консолидация комплектов',
+    totalPallets: 24,
+    completedPallets: 24,
+    remainingPallets: 0,
+    status: 'completed',
+    priority: 3,
+    note: 'Шкафы серия A11',
+    internalComment: '',
+    workerComment: '',
+    labels: ['furniture'],
+    canBeSplit: true,
+    participantWorkerIds: ['u-worker-2'],
+    participantWorkerNames: ['Дмитрий Козлов'],
+    createdByUserId: 'u-superadmin',
+    createdByUserName: 'Иван Соколов',
+    updatedByUserId: 'u-superadmin',
+    updatedByUserName: 'Иван Соколов',
+    archived: false
+  },
+  {
+    id: 'task-4',
+    carrierId: 'c-1',
+    carrierName: 'Baltic Freight',
+    vehicleCode: 'LT-KA-4477',
+    arrivalDate: '2026-03-13T09:00:00.000Z',
+    arrivalTime: '10:00',
+    actionTypeId: 'at-4',
+    actionTypeName: 'Микс-палета / разделение артикулов',
+    totalPallets: 36,
+    completedPallets: 0,
+    remainingPallets: 36,
+    status: 'planned',
+    priority: 3,
+    note: 'Требуется зона B2',
+    internalComment: '',
+    workerComment: '',
+    labels: ['mixed-sku'],
+    canBeSplit: true,
+    participantWorkerIds: [],
+    participantWorkerNames: [],
+    createdByUserId: 'u-admin',
+    createdByUserName: 'Ольга Миронова',
+    updatedByUserId: 'u-admin',
+    updatedByUserName: 'Ольга Миронова',
+    archived: false
+  }
+];
+
+export const seedWorkSessions: Omit<WorkSession, 'createdAt' | 'updatedAt'>[] = [
+  {
+    id: 'ws-1',
+    actionTaskId: 'task-1',
+    workerId: 'u-worker-1',
+    workerName: 'Павел Иванов',
+    startedAt: '2026-03-13T08:45:00.000Z',
+    endedAt: '2026-03-13T10:15:00.000Z',
+    startManualDateTime: '2026-03-13T08:45',
+    endManualDateTime: '2026-03-13T10:15',
+    palletsCompletedInSession: 30,
+    durationMinutes: 90,
+    comment: 'Сделан первый участок'
+  },
+  {
+    id: 'ws-2',
+    actionTaskId: 'task-3',
+    workerId: 'u-worker-2',
+    workerName: 'Дмитрий Козлов',
+    startedAt: '2026-03-12T12:20:00.000Z',
+    endedAt: '2026-03-12T14:00:00.000Z',
+    startManualDateTime: '2026-03-12T12:20',
+    endManualDateTime: '2026-03-12T14:00',
+    palletsCompletedInSession: 24,
+    durationMinutes: 100,
+    comment: 'Комплекты собраны'
+  }
+];

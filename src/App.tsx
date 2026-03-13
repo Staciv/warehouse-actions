@@ -1,15 +1,13 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
-import { InboxPage } from './pages/InboxPage';
-import { NotePage } from './pages/NotePage';
-import { SettingsPage } from './pages/SettingsPage';
+import { AppBootstrap } from './app/providers/AppBootstrap';
+import { AppRouter } from './app/AppRouter';
+import { AuthProvider } from './features/auth/AuthContext';
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<InboxPage />} />
-      <Route path="/note/:id" element={<NotePage />} />
-      <Route path="/settings" element={<SettingsPage />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <AuthProvider>
+      <AppBootstrap>
+        <AppRouter />
+      </AppBootstrap>
+    </AuthProvider>
   );
 }

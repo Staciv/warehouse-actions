@@ -1,88 +1,154 @@
-# Идеи и Напоминания (PWA)
+# WMS Special Ops MVP
 
-Mobile-first офлайн приложение для быстрых заметок с локальным хранением (IndexedDB) и экспортом напоминаний в календарь через `.ics`.
+Production-like MVP веб-приложения для внутреннего логистического учёта специальных складских операций.
 
-## Стек
+## Что это
+Система для учёта специальных складских акций:
+- регистрация машин и заданий
+- гибкая система типов акций
+- роли `superadmin | admin | worker`
+- частичное выполнение одной акции несколькими работниками
+- история Work Sessions + Audit Log
+- базовая аналитика и отчётность
 
-- Vite + React + TypeScript
-- Dexie (IndexedDB)
-- vite-plugin-pwa (offline app shell)
+## Технологии
+- Frontend: React + TypeScript
+- Build: Vite
+- Стили: CSS Modules (+ глобальные utility-стили)
+- Data: Firebase Firestore (опционально)
+- Fallback: Mock mode на localStorage
+- Auth для MVP: custom auth layer поверх коллекции `users` в Firestore / mock
 
-## Локальный запуск
+## Важный компромисс по Auth
+В MVP реализован **практичный custom auth layer** (`login + passwordHash`) через Firestore/mock.
+Это сделано для простого управления внутренними логинами работников (создание/редактирование/сброс) без backend-функций.
 
+Для production рекомендуется перейти на:
+1. Firebase Authentication (email/password или SSO)
+2. Cloud Functions / backend для административного user-management
+3. Хранение ролей через custom claims + проверка в security rules
+
+## Запуск
 ```bash
 npm install
 npm run dev
 ```
 
-Открыть: `http://localhost:5173`
-
-## Production build
-
+Build:
 ```bash
 npm run build
-npm run previewWorkflow `.
+npm run preview
 ```
 
-## Деплой на GitHub Pages
+## Переменные окружения
+Скопируйте `.env.example` в `.env`.
 
-1. Запушить репозиторий на GitHub.
-2. Убедиться, что default branch = `main`.
-3. В Settings -> Pages выбрать **Build and deployment: GitHub Actions**.
-4. Workflow `.github/workflows/deploy.yml` соберет и задеплоит сайт.
+### Mock mode (по умолчанию)
+```env
+VITE_DATA_MODE=mock
+```
 
-`VITE_BASE_PATH` задается автоматически как `/<repo-name>/` в CI.
+### Firebase mode
+```env
+VITE_DATA_MODE=firebase
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+```
 
-## Установка PWA
+Если выбран `firebase`, но env не заполнен, приложение автоматически работает через `mock`.
 
-### Android (Chrome)
+## Seed / demo data
+Seed выполняется автоматически при первом запуске репозитория (`seedIfEmpty`):
+- перевозчики
+- 4 типа акций
+- пользователи (superadmin/admin/worker)
+- задачи в разных статусах
+- work sessions
 
-1. Открыть сайт.
-2. Нажать "Установить" в браузере или в подсказке внутри Settings.
+Mock seed сохраняется в localStorage (`wms_mock_db_v1`).
+Firebase seed пишет коллекции при пустой базе.
 
-### iOS (Safari)
+## Тестовые логины
+- `superadmin / superadmin123`
+- `admin1 / admin123`
+- `worker1 / worker123`
+- `worker2 / worker123`
+- `worker3 / worker123`
 
-1. Открыть сайт в Safari.
-2. Нажать Share.
-3. Выбрать "На экран Домой".
+## Реализованные разделы
+- LoginPage
+- Dashboard (разный UX для worker и admin)
+- ActionsPage (фильтры + создание)
+- ActionDetailsPage (редактирование, work sessions, аудит)
+- CompletedActionsPage
+- VehiclesPage
+- WorkersPage
+- CarriersPage
+- ActionTypesPage
+- ReportsPage
 
-## Архитектура
+## Бизнес-логика частичного выполнения
+Реализовано:
+- одна акция поддерживает много work sessions
+- несколько исполнителей
+- учёт `total/completed/remaining`
+- защита от выполнения сверх остатка
+- авто-статус:
+  - `completed` при остатке `0`
+  - `partial` при частичном выполнении
+  - `draft` при `totalPallets = null`
+- запись изменений в Audit Log
 
-- `src/components` - UI-компоненты (карточки, фильтры, FAB, reminder sheet)
-- `src/pages` - экраны Inbox / Note / Settings
-- `src/db` - Dexie database и типы
-- `src/utils/ics.ts` - генерация iCalendar `.ics` + escape
-- `src/hooks` - live query заметок и PWA install hook
-- `src/styles` - переменные, glass-эффекты, grid фон
+## Права
+- `worker`: видит задачи, создаёт только свои work sessions
+- `admin/superadmin`: CRUD акций, workers, carriers, action types, отчёты
+- Route guards реализованы в роутинге
 
-## Данные и backup
+## Подготовка к i18n (RU -> PL)
+Сейчас UI на русском. Для добавления польского:
+1. вынести строки из компонентов в словарь (`shared/i18n/messages.ts`)
+2. добавить `locale context`
+3. заменить literals на ключи
 
-Данные хранятся локально в IndexedDB (Dexie), без серверов.
+Архитектура уже модульная, поэтому переход прямолинейный.
 
-В Settings:
-- **Экспорт JSON**: сохраняет `notes + settings + schemaVersion`
-- **Импорт JSON**: с подтверждением полностью заменяет локальные данные
+## Структура проекта
+```text
+src/
+  app/
+    providers/
+    routes/
+  components/
+    layout/
+    ui/
+  constants/
+  entities/
+  features/
+    actions/
+    auth/
+    work/
+  hooks/
+  pages/
+  services/
+    firebase/
+    mock/
+    repositories/
+    seed/
+  shared/
+    styles/
+    utils/
+  types/
+```
 
-## iCalendar реализация
-
-Формат `.ics`:
-- `SUMMARY`: первые 60 символов заметки
-- `DESCRIPTION`: полный текст
-- `DTSTART`: выбранные локальные дата/время
-- `DTEND`: +15 минут
-- `UID`: уникальный
-- `DTSTAMP`: UTC
-- `VALARM`: поддержка `-PT5M/-PT10M/-PT30M/-PT1H/-P1D`
-
-Escape спецсимволов:
-- `\\` -> `\\\\`
-- `;` -> `\\;`
-- `,` -> `\\,`
-- перенос строки -> `\\n`
-- line endings: `\r\n`
-
-## Особенности iOS
-
-- Полноценный системный prompt `beforeinstallprompt` на iOS отсутствует.
-- Поэтому в Settings есть отдельная инструкция по установке через Share menu.
-- Импорт `.ics` может открываться через календарь/файлы в зависимости от настроек iOS.
+## Что можно улучшить next
+1. Полноценный переход на Firebase Auth + claims + правила безопасности Firestore.
+2. Реактивные подписки (`onSnapshot`) вместо pull-загрузки.
+3. Оптимистичные обновления и toast-уведомления.
+4. E2E/UI тесты и unit-тесты доменной логики.
+5. Экспорт отчётов в CSV/PDF.
+6. Полноценный i18n (RU/PL) и таблица переводов.
+7. Расширенный аудит (дифф по полям, фильтр по actor/entity/action).

@@ -1,0 +1,105 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --gx-bg-0: #060d19;
+  --gx-bg-1: #0d1a2f;
+  --gx-bg-2: #122844;
+  --gx-surface: rgba(16, 33, 58, 0.52);
+  --gx-surface-strong: rgba(11, 26, 49, 0.72);
+  --gx-surface-soft: rgba(26, 47, 77, 0.35);
+  --gx-border: rgba(197, 223, 255, 0.2);
+  --gx-border-strong: rgba(188, 221, 255, 0.34);
+  --gx-text-main: #f4f8ff;
+  --gx-text-muted: #c1d1e8;
+  --gx-text-dim: #9cb1cf;
+  --gx-accent: #49a8ff;
+  --gx-accent-hover: #79beff;
+  --gx-success: #2fd08d;
+  --gx-warning: #f2b560;
+  --gx-danger: #ff6f7f;
+  --gx-info: #68b9ff;
+  --gx-radius-lg: 24px;
+  --gx-radius-md: 16px;
+  --gx-radius-sm: 12px;
+  --gx-shadow-lg: 0 30px 70px rgba(3, 9, 18, 0.45);
+  --gx-shadow-md: 0 12px 36px rgba(4, 10, 22, 0.34);
+  --gx-blur: blur(16px);
+  --gx-transition: 220ms ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', 'Segoe UI', 'Noto Sans', sans-serif;
+  color: var(--gx-text-main);
+  background:
+    radial-gradient(circle at 14% 18%, rgba(67, 150, 255, 0.22), transparent 34%),
+    radial-gradient(circle at 88% 14%, rgba(133, 89, 250, 0.2), transparent 30%),
+    radial-gradient(circle at 82% 78%, rgba(31, 204, 212, 0.16), transparent 32%),
+    linear-gradient(145deg, var(--gx-bg-0) 0%, var(--gx-bg-1) 50%, var(--gx-bg-2) 100%);
+  background-attachment: fixed;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: var(--gx-info);
+  text-decoration: none;
+  transition: color var(--gx-transition);
+}
+
+a:hover {
+  color: #a9d7ff;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+.sectionTitle {
+  font-size: 18px;
+  font-weight: 650;
+  margin-bottom: 10px;
+  color: var(--gx-text-main);
+}
+
+.stack {
+  display: grid;
+  gap: 14px;
+}
+
+.formGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.kpi {
+  color: var(--gx-text-muted);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+::selection {
+  background: rgba(82, 165, 255, 0.4);
+  color: #fff;
+}
+
+@media (max-width: 720px) {
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+}
