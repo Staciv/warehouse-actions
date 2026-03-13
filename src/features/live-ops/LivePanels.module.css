@@ -1,0 +1,26 @@
+.panel {
+  display: grid;
+  gap: 10px;
+}
+
+.list {
+  display: grid;
+  gap: 10px;
+}
+
+.empty {
+  color: #c4d5eb;
+  font-size: 13px;
+}
+
+.grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.3fr);
+}
+
+@media (max-width: 980px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

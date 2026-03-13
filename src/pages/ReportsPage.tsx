@@ -6,10 +6,12 @@ import { Loader } from '../components/ui/States';
 import { SummaryCards } from '../features/actions/SummaryCards';
 import { useAsync } from '../hooks/useAsync';
 import { getRepository } from '../services/repositories';
+import { useI18n } from '../shared/i18n/I18nContext';
 import { formatMinutes } from '../shared/utils/date';
 import styles from './page.module.css';
 
 export const ReportsPage = () => {
+  const { t } = useI18n();
   const [fromDate, setFromDate] = useState(new Date().toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(new Date().toISOString().slice(0, 10));
 
@@ -46,14 +48,14 @@ export const ReportsPage = () => {
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>Отчёты</h1>
+      <h1 className={styles.title}>{t('page.reports.title')}</h1>
 
       <Card>
         <div className="formGrid">
-          <Field label="Дата с">
+          <Field label="Data od">
             <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
           </Field>
-          <Field label="Дата по">
+          <Field label="Data do">
             <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
           </Field>
         </div>
@@ -65,26 +67,26 @@ export const ReportsPage = () => {
         <>
           <SummaryCards
             items={[
-              { label: 'Работников в отчёте', value: loader.data.workers },
-              { label: 'Машин', value: loader.data.vehicles },
-              { label: 'Палет выполнено', value: loader.data.totalPallets },
-              { label: 'Акций', value: loader.data.tasks.length }
+              { label: 'Pracowników w raporcie', value: loader.data.workers },
+              { label: 'Pojazdów', value: loader.data.vehicles },
+              { label: 'Wykonane palety', value: loader.data.totalPallets },
+              { label: 'Akcji', value: loader.data.tasks.length }
             ]}
           />
 
           <Card>
-            <h3 style={{ marginBottom: 8 }}>Время работ</h3>
-            <div className="kpi">Итого: {formatMinutes(loader.data.totalMinutes)}</div>
+            <h3 style={{ marginBottom: 8 }}>Czas pracy</h3>
+            <div className="kpi">Łącznie: {formatMinutes(loader.data.totalMinutes)}</div>
           </Card>
 
           <Card>
-            <h3 style={{ marginBottom: 8 }}>По работникам</h3>
+            <h3 style={{ marginBottom: 8 }}>Według pracowników</h3>
             <div className="stack">
               {byWorker.map((item) => (
                 <div key={item.name}>
                   <strong>{item.name}</strong>
                   <div className="kpi">
-                    {item.pallets} палет, {formatMinutes(item.minutes)}
+                    {item.pallets} palet, {formatMinutes(item.minutes)}
                   </div>
                 </div>
               ))}

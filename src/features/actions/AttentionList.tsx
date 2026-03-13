@@ -9,9 +9,9 @@ export const AttentionList = ({ tasks }: { tasks: ActionTask[] }) => {
 
   return (
     <Card>
-      <h3 style={{ marginBottom: 10 }}>Требуют внимания</h3>
+      <h3 style={{ marginBottom: 10 }}>Wymagają uwagi</h3>
       {urgent.length === 0 ? (
-        <EmptyState text="Сейчас нет критичных акций" />
+        <EmptyState text="Brak krytycznych akcji" />
       ) : (
         <div className="stack">
           {urgent.map((task) => (
@@ -21,7 +21,7 @@ export const AttentionList = ({ tasks }: { tasks: ActionTask[] }) => {
                 <PriorityBadge priority={task.priority} />
                 <StatusBadge status={task.status} />
               </div>
-              <div className="kpi">{task.carrierName} · остаток {task.remainingPallets}</div>
+              <div className="kpi">{task.carrierName} · pozostało {task.remainingPallets}</div>
             </div>
           ))}
         </div>

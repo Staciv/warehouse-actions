@@ -8,11 +8,13 @@ import { Table } from '../components/ui/Table';
 import { useAsync } from '../hooks/useAsync';
 import { useReferenceData } from '../hooks/useReferenceData';
 import { getRepository } from '../services/repositories';
+import { useI18n } from '../shared/i18n/I18nContext';
 import { formatDateTime, formatMinutes } from '../shared/utils/date';
 import type { WorkSession } from '../types/domain';
 import styles from './page.module.css';
 
 export const CompletedActionsPage = () => {
+  const { t } = useI18n();
   const [fromDate, setFromDate] = useState(new Date().toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(new Date().toISOString().slice(0, 10));
   const [workerName, setWorkerName] = useState('all');
@@ -119,18 +121,18 @@ export const CompletedActionsPage = () => {
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>Сделанные акции</h1>
+      <h1 className={styles.title}>{t('page.completed.title')}</h1>
       <Card>
         <div className="formGrid">
-          <Field label="Дата с">
+          <Field label="Data od">
             <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
           </Field>
-          <Field label="Дата по">
+          <Field label="Data do">
             <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
           </Field>
-          <Field label="Работник">
+          <Field label="Pracownik">
             <Select value={workerName} onChange={(e) => setWorkerName(e.target.value)}>
-              <option value="all">Все</option>
+              <option value="all">Wszyscy</option>
               {workers.map((name) => (
                 <option key={name} value={name}>
                   {name}
@@ -138,9 +140,9 @@ export const CompletedActionsPage = () => {
               ))}
             </Select>
           </Field>
-          <Field label="Перевозчик">
+          <Field label="Przewoźnik">
             <Select value={carrierId} onChange={(e) => setCarrierId(e.target.value)}>
-              <option value="all">Все</option>
+              <option value="all">Wszyscy</option>
               {carriers.map((carrier) => (
                 <option key={carrier.id} value={carrier.id}>
                   {carrier.name}
@@ -148,9 +150,9 @@ export const CompletedActionsPage = () => {
               ))}
             </Select>
           </Field>
-          <Field label="Тип акции">
+          <Field label="Typ akcji">
             <Select value={actionTypeId} onChange={(e) => setActionTypeId(e.target.value)}>
-              <option value="all">Все</option>
+              <option value="all">Wszystkie</option>
               {actionTypes.map((type) => (
                 <option key={type.id} value={type.id}>
                   {type.name}
@@ -164,15 +166,15 @@ export const CompletedActionsPage = () => {
       <Card>
         <div className="formGrid">
           <div>
-            <div className="kpi">Всего сессий</div>
+            <div className="kpi">Łącznie sesji</div>
             <strong>{filtered.length}</strong>
           </div>
           <div>
-            <div className="kpi">Палет выполнено</div>
+            <div className="kpi">Wykonane palety</div>
             <strong>{totalPallets}</strong>
           </div>
           <div>
-            <div className="kpi">Время работ</div>
+            <div className="kpi">Czas pracy</div>
             <strong>{formatMinutes(totalMinutes)}</strong>
           </div>
         </div>
@@ -180,26 +182,26 @@ export const CompletedActionsPage = () => {
 
       <Card>
         {loader.loading ? <Loader /> : null}
-        {!loader.loading && workerSummary.length === 0 ? <EmptyState text="Нет данных по работникам за выбранный период" /> : null}
+        {!loader.loading && workerSummary.length === 0 ? <EmptyState text="Brak danych pracowników dla wybranego okresu" /> : null}
         {!loader.loading && workerSummary.length > 0 ? (
           <Table>
             <thead>
               <tr>
-                <th>Работник</th>
-                <th>Типы акций</th>
-                <th>Сессии</th>
-                <th>Палеты</th>
-                <th>Часы</th>
+                <th>Pracownik</th>
+                <th>Typy akcji</th>
+                <th>Sesje</th>
+                <th>Palety</th>
+                <th>Godziny</th>
               </tr>
             </thead>
             <tbody>
               {workerSummary.map((item) => (
                 <tr key={item.rowKey}>
-                  <td data-label="Работник">{item.workerName}</td>
-                  <td data-label="Типы акций">{item.actionTypesList}</td>
-                  <td data-label="Сессии">{item.sessionsCount}</td>
-                  <td data-label="Палеты">{item.totalPallets}</td>
-                  <td data-label="Часы">{formatMinutes(item.totalMinutes)}</td>
+                  <td data-label="Pracownik">{item.workerName}</td>
+                  <td data-label="Typy akcji">{item.actionTypesList}</td>
+                  <td data-label="Sesje">{item.sessionsCount}</td>
+                  <td data-label="Palety">{item.totalPallets}</td>
+                  <td data-label="Godziny">{formatMinutes(item.totalMinutes)}</td>
                 </tr>
               ))}
             </tbody>
@@ -209,30 +211,32 @@ export const CompletedActionsPage = () => {
 
       <Card>
         {loader.loading ? <Loader /> : null}
-        {!loader.loading && filtered.length === 0 ? <EmptyState text="За выбранный период данных нет" /> : null}
+        {!loader.loading && filtered.length === 0 ? <EmptyState text="Brak danych dla wybranego okresu" /> : null}
         {!loader.loading && filtered.length > 0 ? (
           <Table>
             <thead>
               <tr>
-                <th>Работник</th>
-                <th>Машина</th>
-                <th>Тип акции</th>
-                <th>Перевозчик</th>
-                <th>Палеты</th>
-                <th>Длительность</th>
-                <th>Время</th>
+                <th>Pracownik</th>
+                <th>Rampa</th>
+                <th>Pojazd</th>
+                <th>Typ akcji</th>
+                <th>Przewoźnik</th>
+                <th>Palety</th>
+                <th>Czas trwania</th>
+                <th>Czas</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(({ session, task }) => (
                 <tr key={session.id}>
-                  <td data-label="Работник">{session.workerName}</td>
-                  <td data-label="Машина">{task.vehicleCode}</td>
-                  <td data-label="Тип акции">{task.actionTypeName}</td>
-                  <td data-label="Перевозчик">{task.carrierName}</td>
-                  <td data-label="Палеты">{session.palletsCompletedInSession}</td>
-                  <td data-label="Длительность">{formatMinutes(session.durationMinutes)}</td>
-                  <td data-label="Время">{formatDateTime(session.startedAt)}</td>
+                  <td data-label="Pracownik">{session.workerName}</td>
+                  <td data-label="Rampa">{session.rampNumber}</td>
+                  <td data-label="Pojazd">{task.vehicleCode}</td>
+                  <td data-label="Typ akcji">{task.actionTypeName}</td>
+                  <td data-label="Przewoźnik">{task.carrierName}</td>
+                  <td data-label="Palety">{session.palletsCompletedInSession}</td>
+                  <td data-label="Czas trwania">{formatMinutes(session.durationMinutes)}</td>
+                  <td data-label="Czas">{formatDateTime(session.startedAt)}</td>
                 </tr>
               ))}
             </tbody>

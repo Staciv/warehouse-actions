@@ -12,7 +12,7 @@ export const AppBootstrap = ({ children }: { children: React.ReactNode }) => {
         await getRepository().seedIfEmpty();
         setReady(true);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Ошибка bootstrap');
+        setError(err instanceof Error ? err.message : 'Błąd bootstrap');
       }
     };
 
@@ -20,7 +20,7 @@ export const AppBootstrap = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   if (error) return <div style={{ color: '#c63d3d', padding: 20 }}>{error}</div>;
-  if (!ready) return <Loader text="Инициализация данных..." />;
+  if (!ready) return <Loader text="Inicjalizacja danych..." />;
 
   return <>{children}</>;
 };

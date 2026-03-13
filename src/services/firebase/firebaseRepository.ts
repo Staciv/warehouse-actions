@@ -29,6 +29,7 @@ import { seedActionTasks, seedActionTypes, seedCarriers, seedUsers, seedWorkSess
 import {
   applyTaskFilters,
   normalizeTaskRow,
+  sanitizeUserForClient,
   withTimestamps
 } from '../repositories/helpers';
 import {
@@ -63,6 +64,22 @@ const putById = async <T extends { id: string }>(name: string, row: T) => {
   await setDoc(doc(getDb(), name, row.id), row, { merge: false });
 };
 
+const redactAuditValue = (value: unknown): unknown => {
+  if (!value || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map((entry) => redactAuditValue(entry));
+
+  const source = value as Record<string, unknown>;
+  const next: Record<string, unknown> = {};
+  for (const [key, entryValue] of Object.entries(source)) {
+    if (key === 'passwordHash' || key === 'password') {
+      next[key] = '[REDACTED]';
+      continue;
+    }
+    next[key] = redactAuditValue(entryValue);
+  }
+  return next;
+};
+
 const pushAudit = async (
   entityType: AuditLog['entityType'],
   entityId: string,
@@ -77,8 +94,8 @@ const pushAudit = async (
     entityType,
     entityId,
     action,
-    oldValue: oldValue ? JSON.stringify(oldValue) : undefined,
-    newValue: newValue ? JSON.stringify(newValue) : undefined,
+    oldValue: oldValue ? JSON.stringify(redactAuditValue(oldValue)) : undefined,
+    newValue: newValue ? JSON.stringify(redactAuditValue(newValue)) : undefined,
     performedByUserId: actor.id,
     performedByUserName: actor.displayName,
     performedAt: now,
@@ -93,6 +110,7 @@ export class FirebaseRepository implements Repository {
   mode: 'firebase' = 'firebase';
 
   async seedIfEmpty() {
+    if (import.meta.env.VITE_ENABLE_FIREBASE_SEED !== 'true') return;
     const db = getDb();
     const usersRef = collection(db, collections.users);
     const existing = await getDocs(query(usersRef, limit(1)));
@@ -135,28 +153,36 @@ export class FirebaseRepository implements Repository {
     const usersRef = collection(db, collections.users);
     const userQuery = query(usersRef, where('login', '==', payload.login), limit(1));
     const snap = await getDocs(userQuery);
-    if (snap.empty) throw new Error('Пользователь не найден');
+    if (snap.empty) throw new Error('Nie znaleziono użytkownika');
 
     const user = snap.docs[0].data() as User;
-    if (!user.isActive) throw new Error('Пользователь деактивирован');
+    if (!user.isActive) throw new Error('Użytkownik jest dezaktywowany');
 
     const hash = await sha256(payload.password);
-    if (hash !== user.passwordHash) throw new Error('Неверный пароль');
+    if (hash !== user.passwordHash) throw new Error('Nieprawidłowe hasło');
 
-    return user;
+    return sanitizeUserForClient(user);
   }
 
-  async getUsers() {
+  async getUserById(id: string) {
+    const row = await readById<User>(collections.users, id);
+    if (!row || !row.isActive) return null;
+    return sanitizeUserForClient(row);
+  }
+
+  async getUsers(actor: User) {
+    assertAdmin(actor);
     const rows = await readCollection<User>(collections.users);
     return rows
       .map((row) => ({ ...row, availabilityStatus: row.availabilityStatus ?? 'available' }))
-      .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'));
+      .map(sanitizeUserForClient)
+      .sort((a, b) => a.displayName.localeCompare(b.displayName, 'pl'));
   }
 
   async createUser(payload: CreateUserPayload, actor: User) {
     assertCanManageUserRole(actor, payload.role);
-    const rows = await this.getUsers();
-    if (rows.some((row) => row.login === payload.login)) throw new Error('Логин уже используется');
+    const rows = await readCollection<User>(collections.users);
+    if (rows.some((row) => row.login === payload.login)) throw new Error('Login jest już używany');
 
     const user: User = withTimestamps({
       id: createId(),
@@ -172,12 +198,12 @@ export class FirebaseRepository implements Repository {
 
     await putById(collections.users, user);
     await pushAudit('user', user.id, 'create', null, user, actor);
-    return user;
+    return sanitizeUserForClient(user);
   }
 
   async updateUser(id: string, payload: UpdateUserPayload, actor: User) {
     const existing = await readById<User>(collections.users, id);
-    if (!existing) throw new Error('Пользователь не найден');
+    if (!existing) throw new Error('Nie znaleziono użytkownika');
     assertCanManageUserRole(actor, payload.role ?? existing.role, existing);
 
     const old = { ...existing };
@@ -198,12 +224,12 @@ export class FirebaseRepository implements Repository {
 
     await putById(collections.users, merged);
     await pushAudit('user', id, 'update', old, merged, actor);
-    return merged;
+    return sanitizeUserForClient(merged);
   }
 
   async getCarriers() {
     const rows = await readCollection<Carrier>(collections.carriers);
-    return rows.filter((carrier) => carrier.isActive).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    return rows.filter((carrier) => carrier.isActive).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   }
 
   async upsertCarrier(carrier: Omit<Carrier, 'createdAt' | 'updatedAt'>, actor: User) {
@@ -230,12 +256,12 @@ export class FirebaseRepository implements Repository {
   async deleteCarrier(id: string, actor: User) {
     assertAdmin(actor);
     const existing = await readById<Carrier>(collections.carriers, id);
-    if (!existing) throw new Error('Перевозчик не найден');
+    if (!existing) throw new Error('Nie znaleziono przewoźnika');
 
     const allTasks = await readCollection<ActionTask>(collections.actionTasks);
     const hasActiveTasks = allTasks.some((task) => task.carrierId === id && !task.archived);
     if (hasActiveTasks) {
-      throw new Error('Нельзя удалить перевозчика: есть связанные неархивные акции');
+      throw new Error('Nie można usunąć przewoźnika: istnieją powiązane niearchiwalne akcje');
     }
 
     await deleteDoc(doc(getDb(), collections.carriers, id));
@@ -244,7 +270,7 @@ export class FirebaseRepository implements Repository {
 
   async getActionTypes() {
     const rows = await readCollection<ActionType>(collections.actionTypes);
-    return rows.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    return rows.sort((a, b) => a.name.localeCompare(b.name, 'pl'));
   }
 
   async upsertActionType(actionType: Omit<ActionType, 'createdAt' | 'updatedAt'>, actor: User) {
@@ -270,12 +296,25 @@ export class FirebaseRepository implements Repository {
 
   async getActionTasks(filters?: ActionTaskFilters) {
     const rows = await readCollection<ActionTask>(collections.actionTasks);
-    return applyTaskFilters(rows, filters);
+    const types = await this.getActionTypes();
+    const typeNameById = new Map(types.map((type) => [type.id, type.name]));
+    const normalizedRows = rows.map((row) => ({
+      ...row,
+      actionTypeName: typeNameById.get(row.actionTypeId) ?? row.actionTypeName
+    }));
+    return applyTaskFilters(normalizedRows, filters);
   }
 
   async getActionTaskById(id: string) {
     const task = await readById<ActionTask>(collections.actionTasks, id);
-    return task ? normalizeTaskRow(task) : null;
+    if (!task) return null;
+    const types = await this.getActionTypes();
+    const typeNameById = new Map(types.map((type) => [type.id, type.name]));
+    const normalizedTask: ActionTask = {
+      ...task,
+      actionTypeName: typeNameById.get(task.actionTypeId) ?? task.actionTypeName
+    };
+    return normalizeTaskRow(normalizedTask);
   }
 
   async createActionTask(payload: CreateActionTaskPayload, actor: User) {
@@ -284,8 +323,8 @@ export class FirebaseRepository implements Repository {
     const carrier = carriers.find((row) => row.id === payload.carrierId);
     const actionType = types.find((row) => row.id === payload.actionTypeId);
 
-    if (!carrier) throw new Error('Перевозчик не найден');
-    if (!actionType) throw new Error('Тип акции не найден');
+    if (!carrier) throw new Error('Nie znaleziono przewoźnika');
+    if (!actionType) throw new Error('Nie znaleziono typu akcji');
 
     const total = payload.totalPallets;
     const task: ActionTask = withTimestamps({
@@ -300,7 +339,7 @@ export class FirebaseRepository implements Repository {
       totalPallets: total,
       completedPallets: 0,
       remainingPallets: total ?? 0,
-      status: 'planned' as const,
+      status: total === null ? ('draft' as const) : ('planned' as const),
       priority: payload.priority,
       note: payload.note,
       internalComment: payload.internalComment,
@@ -329,22 +368,22 @@ export class FirebaseRepository implements Repository {
 
     const updated = await runTransaction(db, async (tx) => {
       const taskSnap = await tx.get(taskRef);
-      if (!taskSnap.exists()) throw new Error('Операция не найдена');
+      if (!taskSnap.exists()) throw new Error('Nie znaleziono operacji');
       const task = normalizeTaskRow(taskSnap.data() as ActionTask);
       if (task.archived || task.status === 'archived' || task.status === 'cancelled') {
-        throw new Error('Операция недоступна для запуска');
+        throw new Error('Operacja jest niedostępna do uruchomienia');
       }
       if (task.totalPallets === null) {
-        throw new Error('Сначала укажите точное количество палет');
+        throw new Error('Najpierw podaj dokładną liczbę palet');
       }
       if (task.remainingPallets <= 0) {
-        throw new Error('Операция уже завершена');
+        throw new Error('Operacja jest już zakończona');
       }
 
       const workerSnap = await tx.get(workerRef);
-      if (!workerSnap.exists()) throw new Error('Работник не найден');
+      if (!workerSnap.exists()) throw new Error('Nie znaleziono pracownika');
       const worker = workerSnap.data() as User;
-      if (!worker.isActive) throw new Error('Работник деактивирован');
+      if (!worker.isActive) throw new Error('Pracownik jest dezaktywowany');
 
       const nextTask: ActionTask = {
         ...task,
@@ -362,7 +401,7 @@ export class FirebaseRepository implements Repository {
 
       const nextWorker: User = {
         ...worker,
-        availabilityStatus: nextTask.status === 'completed' ? 'available' : 'busy',
+        availabilityStatus: nextTask.status === 'completed' ? 'completed' : 'in_action',
         updatedAt: toIsoNow()
       };
 
@@ -381,20 +420,19 @@ export class FirebaseRepository implements Repository {
     const db = getDb();
     const taskRef = doc(db, collections.actionTasks, taskId);
     const workerRef = doc(db, collections.users, workerId);
-
     const updated = await runTransaction(db, async (tx) => {
       const taskSnap = await tx.get(taskRef);
-      if (!taskSnap.exists()) throw new Error('Операция не найдена');
+      if (!taskSnap.exists()) throw new Error('Nie znaleziono operacji');
       const task = normalizeTaskRow(taskSnap.data() as ActionTask);
       if (task.archived || task.status === 'archived' || task.status === 'cancelled') {
-        throw new Error('Операция недоступна для изменения');
+        throw new Error('Operacja jest niedostępna do zmiany');
       }
       if (!task.participantWorkerIds.includes(workerId)) {
-        throw new Error('Работник не участвует в этой операции');
+        throw new Error('Pracownik nie uczestniczy w tej operacji');
       }
 
       const workerSnap = await tx.get(workerRef);
-      if (!workerSnap.exists()) throw new Error('Работник не найден');
+      if (!workerSnap.exists()) throw new Error('Nie znaleziono pracownika');
       const worker = workerSnap.data() as User;
 
       const workerPosition = task.participantWorkerIds.findIndex((id) => id === workerId);
@@ -429,22 +467,25 @@ export class FirebaseRepository implements Repository {
       return { oldTask: task, newTask: nextTask, oldWorker: worker, newWorker: nextWorker };
     });
 
-    const allTasks = await readCollection<ActionTask>(collections.actionTasks);
-    const hasOtherActiveExecutions = allTasks.some((entry) => {
-      const normalized = normalizeTaskRow(entry);
-      return (
-        normalized.id !== taskId &&
-        !normalized.archived &&
-        normalized.status === 'executing' &&
-        normalized.remainingPallets > 0 &&
-        normalized.participantWorkerIds.includes(workerId)
-      );
+    const activeTasksForWorkerSnap = await getDocs(
+      query(
+        collection(db, collections.actionTasks),
+        where('participantWorkerIds', 'array-contains', workerId),
+        where('archived', '==', false),
+        where('status', '==', 'executing')
+      )
+    );
+
+    const hasOtherActiveExecutions = activeTasksForWorkerSnap.docs.some((entry) => {
+      if (entry.id === taskId) return false;
+      const normalized = normalizeTaskRow(entry.data() as ActionTask);
+      return normalized.remainingPallets > 0;
     });
 
-    if (hasOtherActiveExecutions && updated.newWorker.availabilityStatus !== 'busy') {
+    if (hasOtherActiveExecutions && updated.newWorker.availabilityStatus !== 'in_action') {
       const worker = await readById<User>(collections.users, workerId);
       if (worker) {
-        const nextWorker: User = { ...worker, availabilityStatus: 'busy', updatedAt: toIsoNow() };
+        const nextWorker: User = { ...worker, availabilityStatus: 'in_action', updatedAt: toIsoNow() };
         await putById(collections.users, nextWorker);
         await pushAudit('user', workerId, 'worker_status_update', worker, nextWorker, actor);
       }
@@ -459,7 +500,7 @@ export class FirebaseRepository implements Repository {
   async updateActionTask(id: string, payload: UpdateActionTaskPayload, actor: User) {
     assertAdmin(actor);
     const existingRaw = await readById<ActionTask>(collections.actionTasks, id);
-    if (!existingRaw) throw new Error('Акция не найдена');
+    if (!existingRaw) throw new Error('Nie znaleziono akcji');
     const existing = normalizeTaskRow(existingRaw);
 
     const [carriers, types] = await Promise.all([this.getCarriers(), this.getActionTypes()]);
@@ -484,21 +525,21 @@ export class FirebaseRepository implements Repository {
 
     if (payload.carrierId) {
       const carrier = carriers.find((row) => row.id === payload.carrierId);
-      if (!carrier) throw new Error('Перевозчик не найден');
+      if (!carrier) throw new Error('Nie znaleziono przewoźnika');
       merged.carrierId = carrier.id;
       merged.carrierName = carrier.name;
     }
 
     if (payload.actionTypeId) {
       const type = types.find((row) => row.id === payload.actionTypeId);
-      if (!type) throw new Error('Тип акции не найден');
+      if (!type) throw new Error('Nie znaleziono typu akcji');
       merged.actionTypeId = type.id;
       merged.actionTypeName = type.name;
     }
 
     if (payload.totalPallets !== undefined) {
       if (payload.totalPallets !== null && payload.totalPallets < existing.completedPallets) {
-        throw new Error('Общее количество палет не может быть меньше выполненного объёма');
+        throw new Error('Całkowita liczba palet nie może być mniejsza niż wykonany wolumen');
       }
       merged.totalPallets = payload.totalPallets;
       merged.remainingPallets = payload.totalPallets === null ? 0 : payload.totalPallets - merged.completedPallets;
@@ -511,7 +552,11 @@ export class FirebaseRepository implements Repository {
       for (const workerId of normalized.participantWorkerIds) {
         const worker = await readById<User>(collections.users, workerId);
         if (!worker) continue;
-        const nextWorker: User = { ...worker, availabilityStatus: 'available', updatedAt: toIsoNow() };
+        const nextWorker: User = {
+          ...worker,
+          availabilityStatus: normalized.status === 'completed' ? 'completed' : 'available',
+          updatedAt: toIsoNow()
+        };
         await putById(collections.users, nextWorker);
         await pushAudit('user', workerId, 'worker_status_update', worker, nextWorker, actor);
       }
@@ -522,26 +567,27 @@ export class FirebaseRepository implements Repository {
   }
 
   async getWorkSessionsByTask(taskId: string) {
-    const rows = await readCollection<WorkSession>(collections.workSessions);
+    const snap = await getDocs(query(collection(getDb(), collections.workSessions), where('actionTaskId', '==', taskId)));
+    const rows = snap.docs.map((row) => row.data() as WorkSession);
     return rows
-      .filter((row) => row.actionTaskId === taskId)
+      .map((row) => ({ ...row, rampNumber: row.rampNumber ?? '—' }))
       .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
   }
 
   async getWorkSessions(options?: { fromDate?: string; toDate?: string }) {
-    const rows = await readCollection<WorkSession>(collections.workSessions);
-
-    let filtered = rows;
+    const constraints = [];
     if (options?.fromDate) {
-      const from = new Date(`${options.fromDate}T00:00:00`).getTime();
-      filtered = filtered.filter((row) => new Date(row.startedAt).getTime() >= from);
+      constraints.push(where('startedAt', '>=', new Date(`${options.fromDate}T00:00:00`).toISOString()));
     }
     if (options?.toDate) {
-      const to = new Date(`${options.toDate}T23:59:59`).getTime();
-      filtered = filtered.filter((row) => new Date(row.startedAt).getTime() <= to);
+      constraints.push(where('startedAt', '<=', new Date(`${options.toDate}T23:59:59`).toISOString()));
     }
+    const snap = await getDocs(query(collection(getDb(), collections.workSessions), ...constraints));
+    const filtered = snap.docs.map((row) => row.data() as WorkSession);
 
-    return filtered.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+    return filtered
+      .map((row) => ({ ...row, rampNumber: row.rampNumber ?? '—' }))
+      .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
   }
 
   async createWorkSession(payload: CreateWorkSessionPayload, actor: User) {
@@ -553,16 +599,17 @@ export class FirebaseRepository implements Repository {
 
     const createdSession = await runTransaction(db, async (tx) => {
       const taskSnap = await tx.get(taskRef);
-      if (!taskSnap.exists()) throw new Error('Акция не найдена');
+      if (!taskSnap.exists()) throw new Error('Nie znaleziono akcji');
       const task = normalizeTaskRow(taskSnap.data() as ActionTask);
       assertTaskAcceptsWorkSession(task, payload.workerId);
 
       const workerSnap = await tx.get(workerRef);
-      if (!workerSnap.exists()) throw new Error('Работник не найден');
+      if (!workerSnap.exists()) throw new Error('Nie znaleziono pracownika');
       const worker = workerSnap.data() as User;
 
       const validationError = validateSessionInput(
         task,
+        payload.rampNumber,
         payload.palletsCompletedInSession,
         payload.startedAt,
         payload.endedAt
@@ -584,6 +631,7 @@ export class FirebaseRepository implements Repository {
         actionTaskId: payload.actionTaskId,
         workerId: payload.workerId,
         workerName: worker.displayName,
+        rampNumber: payload.rampNumber.trim(),
         startedAt: payload.startedAt,
         endedAt: payload.endedAt,
         startManualDateTime: payload.startedAt,
@@ -595,7 +643,7 @@ export class FirebaseRepository implements Repository {
 
       const nextWorker: User = {
         ...worker,
-        availabilityStatus: nextTask.status === 'completed' ? 'available' : 'busy',
+        availabilityStatus: nextTask.status === 'completed' ? 'completed' : 'in_action',
         updatedAt: toIsoNow()
       };
 
@@ -614,7 +662,11 @@ export class FirebaseRepository implements Repository {
         if (participantId === payload.workerId) continue;
         const worker = await readById<User>(collections.users, participantId);
         if (!worker) continue;
-        const nextWorker: User = { ...worker, availabilityStatus: 'available', updatedAt: toIsoNow() };
+        const nextWorker: User = {
+          ...worker,
+          availabilityStatus: createdSession.newTask.status === 'completed' ? 'completed' : 'available',
+          updatedAt: toIsoNow()
+        };
         await putById(collections.users, nextWorker);
         await pushAudit('user', participantId, 'worker_status_update', worker, nextWorker, actor);
       }
@@ -623,11 +675,14 @@ export class FirebaseRepository implements Repository {
     return createdSession.session;
   }
 
-  async getAuditLogs(entityType?: AuditLog['entityType'], entityId?: string) {
-    const rows = await readCollection<AuditLog>(collections.auditLogs);
+  async getAuditLogs(entityType: AuditLog['entityType'] | undefined, entityId: string | undefined, actor: User) {
+    assertAdmin(actor);
+    const constraints = [];
+    if (entityType) constraints.push(where('entityType', '==', entityType));
+    if (entityId) constraints.push(where('entityId', '==', entityId));
+    const snap = await getDocs(query(collection(getDb(), collections.auditLogs), ...constraints));
+    const rows = snap.docs.map((row) => row.data() as AuditLog);
     return rows
-      .filter((log) => (entityType ? log.entityType === entityType : true))
-      .filter((log) => (entityId ? log.entityId === entityId : true))
       .sort((a, b) => new Date(b.performedAt).getTime() - new Date(a.performedAt).getTime());
   }
 }

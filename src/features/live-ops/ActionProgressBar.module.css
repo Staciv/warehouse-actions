@@ -1,0 +1,38 @@
+.root {
+  display: grid;
+  gap: 8px;
+}
+
+.barWrap {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(123, 158, 203, 0.25);
+  border: 1px solid rgba(154, 190, 238, 0.25);
+}
+
+.bar {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #5da9ff 0%, #67c8ff 100%);
+  transition: width 260ms ease;
+}
+
+.barDone {
+  background: linear-gradient(90deg, #24ca7a 0%, #59e9a4 100%);
+}
+
+.meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #d4e3f8;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.percent {
+  font-weight: 700;
+  color: #f0f7ff;
+}

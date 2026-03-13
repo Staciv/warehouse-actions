@@ -1,0 +1,13 @@
+.timer {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 10px;
+  border: 1px solid rgba(152, 194, 245, 0.28);
+  background: rgba(20, 41, 69, 0.48);
+  color: #eef6ff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 6px 10px;
+  white-space: nowrap;
+}

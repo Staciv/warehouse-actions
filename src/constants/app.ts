@@ -8,4 +8,4 @@ export const dataMode: DataMode =
 export const isFirebaseMode = dataMode === 'firebase';
 
 export const SESSION_STORAGE_KEY = 'wms_session';
-export const MOCK_DB_STORAGE_KEY = 'wms_mock_db_v1';
+export const MOCK_DB_STORAGE_KEY = 'wms_mock_db_v2';

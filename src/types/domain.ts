@@ -1,5 +1,5 @@
 export type UserRole = 'superadmin' | 'admin' | 'worker';
-export type WorkerAvailabilityStatus = 'available' | 'busy';
+export type WorkerAvailabilityStatus = 'available' | 'busy' | 'in_action' | 'paused' | 'offline' | 'completed';
 
 export type TaskStatus =
   | 'planned'
@@ -79,6 +79,7 @@ export interface WorkSession extends BaseEntity {
   actionTaskId: string;
   workerId: string;
   workerName: string;
+  rampNumber: string;
   startedAt: string;
   endedAt: string;
   startManualDateTime?: string;
@@ -100,7 +101,7 @@ export interface AuditLog extends BaseEntity {
 }
 
 export interface AuthSession {
-  user: User;
+  userId: string;
   loginAt: string;
 }
 

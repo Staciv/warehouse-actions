@@ -2,13 +2,13 @@ import type { ActionTask, User, UserRole } from '../../types/domain';
 
 export const assertAdmin = (actor: User) => {
   if (actor.role !== 'admin' && actor.role !== 'superadmin') {
-    throw new Error('Недостаточно прав для административной операции');
+    throw new Error('Brak uprawnień do operacji administracyjnej');
   }
 };
 
 export const assertSuperAdmin = (actor: User) => {
   if (actor.role !== 'superadmin') {
-    throw new Error('Операция доступна только главному администратору');
+    throw new Error('Operacja dostępna tylko dla superadministratora');
   }
 };
 
@@ -20,50 +20,50 @@ export const assertCanManageUserRole = (
   assertAdmin(actor);
 
   if (targetRole === 'superadmin' && actor.role !== 'superadmin') {
-    throw new Error('Только главный админ может назначать роль superadmin');
+    throw new Error('Tylko superadministrator może nadać rolę superadmin');
   }
 
   if (existingTarget?.role === 'superadmin' && actor.role !== 'superadmin') {
-    throw new Error('Только главный админ может изменять superadmin');
+    throw new Error('Tylko superadministrator może zmieniać konto superadmin');
   }
 };
 
 export const assertCanRecordWorkSession = (actor: User, workerId: string) => {
   if (actor.role !== 'worker') {
-    throw new Error('Только работник может запускать и фиксировать выполнение');
+    throw new Error('Tylko pracownik może uruchamiać i zapisywać wykonanie');
   }
   if (actor.id !== workerId) {
-    throw new Error('Работник может фиксировать только своё выполнение');
+    throw new Error('Pracownik może zapisać tylko własne wykonanie');
   }
 };
 
 export const assertTaskAcceptsWorkSession = (task: ActionTask, workerId: string) => {
   if (task.archived || task.status === 'archived') {
-    throw new Error('Архивная акция недоступна для выполнения');
+    throw new Error('Akcja archiwalna jest niedostępna do wykonania');
   }
 
   if (task.totalPallets === null || task.status === 'draft' || task.status === 'inactive') {
-    throw new Error('Акция не активирована: отсутствует подтверждённый объём палет');
+    throw new Error('Akcja nieaktywna: brak potwierdzonego wolumenu palet');
   }
 
   if (task.status === 'deferred') {
-    throw new Error('Акция отложена и временно недоступна для выполнения');
+    throw new Error('Akcja odłożona i tymczasowo niedostępna');
   }
   if (task.status === 'cancelled') {
-    throw new Error('Операция отменена и недоступна для выполнения');
+    throw new Error('Operacja anulowana i niedostępna do wykonania');
   }
   if (task.status !== 'executing') {
-    throw new Error('Сначала переведите операцию в статус \"Выполняется\"');
+    throw new Error('Najpierw ustaw operację na status „W realizacji”');
   }
   if (!task.participantWorkerIds.includes(workerId)) {
-    throw new Error('Работник должен сначала присоединиться к выполнению операции');
+    throw new Error('Pracownik musi najpierw dołączyć do realizacji operacji');
   }
 
   if (task.remainingPallets <= 0) {
-    throw new Error('По акции не осталось палет к выполнению');
+    throw new Error('Dla tej akcji nie pozostały palety do wykonania');
   }
 
   if (!task.canBeSplit && task.completedPallets > 0) {
-    throw new Error('Эта акция не поддерживает частичное разбиение');
+    throw new Error('Ta akcja nie obsługuje częściowego wykonania');
   }
 };

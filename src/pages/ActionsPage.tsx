@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -11,6 +11,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { useReferenceData } from '../hooks/useReferenceData';
 import { useTasks } from '../hooks/useTasks';
 import { getRepository } from '../services/repositories';
+import { useI18n } from '../shared/i18n/I18nContext';
 import type { CreateActionTaskPayload } from '../services/repositories/types';
 import { isTaskAvailableForWorkers } from '../entities/action-task';
 import type { ActionTaskFilters } from '../types/domain';
@@ -41,6 +42,7 @@ const taskStatuses: Array<Exclude<ActionTaskFilters['status'], 'all' | undefined
 
 export const ActionsPage = () => {
   const { user } = useAuth();
+  const { t } = useI18n();
   const [searchParams] = useSearchParams();
   const { carriers, actionTypes, loading: refsLoading, reload: reloadRefs } = useReferenceData();
   const initialFilters = useMemo<ActionTaskFilters>(() => {
@@ -71,6 +73,10 @@ export const ActionsPage = () => {
   const [filters, setFilters] = useState<ActionTaskFilters>(initialFilters);
   const [showCreate, setShowCreate] = useState(false);
 
+  useEffect(() => {
+    setFilters(initialFilters);
+  }, [initialFilters]);
+
   const { tasks, loading, error, reload } = useTasks(filters);
   const canManage = user ? isAdminRole(user.role) : false;
 
@@ -88,12 +94,12 @@ export const ActionsPage = () => {
     <div className={styles.page}>
       <div className={styles.titleRow}>
         <div>
-          <h1 className={styles.title}>Акции</h1>
-          <div className={styles.subtitle}>Список задач с фильтрами и сортировкой по приоритету</div>
+          <h1 className={styles.title}>{t('page.actions.title')}</h1>
+          <div className={styles.subtitle}>{t('page.actions.subtitle')}</div>
         </div>
         {canManage ? (
           <Button variant="primary" onClick={() => setShowCreate((value) => !value)}>
-            {showCreate ? 'Скрыть форму' : 'Создать акцию'}
+            {showCreate ? t('page.actions.hideForm') : t('page.actions.create')}
           </Button>
         ) : null}
       </div>
@@ -104,7 +110,7 @@ export const ActionsPage = () => {
           carriers={carriers}
           actionTypes={actionTypes}
           onSubmit={createTask}
-          submitLabel="Создать"
+          submitLabel={t('page.actions.create')}
         />
       ) : null}
 
@@ -115,7 +121,7 @@ export const ActionsPage = () => {
         {error ? <div style={{ color: '#c63d3d' }}>{error}</div> : null}
         {!loading && !refsLoading ? (
           (canManage ? tasks : workerTasks).length === 0 ? (
-            <EmptyState text="По текущим фильтрам задач нет" />
+            <EmptyState text="Brak zadań dla bieżących filtrów" />
           ) : (
             <ActionTaskTable tasks={canManage ? tasks : workerTasks} />
           )

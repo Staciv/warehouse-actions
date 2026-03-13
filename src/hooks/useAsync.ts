@@ -13,7 +13,7 @@ export const useAsync = <T,>(fn: () => Promise<T>, immediate = true) => {
       setData(response);
       return response;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Неизвестная ошибка';
+      const message = err instanceof Error ? err.message : 'Nieznany błąd';
       setError(message);
       throw err;
     } finally {

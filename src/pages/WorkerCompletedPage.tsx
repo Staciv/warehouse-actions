@@ -7,12 +7,14 @@ import { Table } from '../components/ui/Table';
 import { useAuth } from '../features/auth/AuthContext';
 import { useAsync } from '../hooks/useAsync';
 import { getRepository } from '../services/repositories';
+import { useI18n } from '../shared/i18n/I18nContext';
 import { formatDateTime, formatMinutes } from '../shared/utils/date';
 import type { WorkSession } from '../types/domain';
 import styles from './page.module.css';
 
 export const WorkerCompletedPage = () => {
   const { user } = useAuth();
+  const { t } = useI18n();
   const [fromDate, setFromDate] = useState(new Date().toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(new Date().toISOString().slice(0, 10));
 
@@ -59,16 +61,16 @@ export const WorkerCompletedPage = () => {
   return (
     <div className={styles.page}>
       <div>
-        <h1 className={styles.title}>Выполненные</h1>
-        <div className={styles.subtitle}>Только ваши выполненные операции</div>
+        <h1 className={styles.title}>{t('page.workerCompleted.title')}</h1>
+        <div className={styles.subtitle}>{t('page.workerCompleted.subtitle')}</div>
       </div>
 
       <Card>
         <div className="formGrid">
-          <Field label="Дата с">
+          <Field label="Data od">
             <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
           </Field>
-          <Field label="Дата по">
+          <Field label="Data do">
             <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
           </Field>
         </div>
@@ -77,15 +79,15 @@ export const WorkerCompletedPage = () => {
       <Card>
         <div className="formGrid">
           <div>
-            <div className="kpi">Сессий выполнено</div>
+            <div className="kpi">Wykonane sesje</div>
             <strong>{loader.data?.length ?? 0}</strong>
           </div>
           <div>
-            <div className="kpi">Палет выполнено</div>
+            <div className="kpi">Wykonane palety</div>
             <strong>{totalPallets}</strong>
           </div>
           <div>
-            <div className="kpi">Время работ</div>
+            <div className="kpi">Czas pracy</div>
             <strong>{formatMinutes(totalMinutes)}</strong>
           </div>
         </div>
@@ -93,28 +95,30 @@ export const WorkerCompletedPage = () => {
 
       <Card>
         {loader.loading ? <Loader /> : null}
-        {!loader.loading && (loader.data?.length ?? 0) === 0 ? <EmptyState text="По выбранному периоду нет выполнений" /> : null}
+        {!loader.loading && (loader.data?.length ?? 0) === 0 ? <EmptyState text="Brak wykonań w wybranym okresie" /> : null}
         {!loader.loading && (loader.data?.length ?? 0) > 0 ? (
           <Table>
             <thead>
               <tr>
-                <th>Дата</th>
-                <th>Машина</th>
-                <th>Тип акции</th>
-                <th>Перевозчик</th>
-                <th>Палеты</th>
-                <th>Длительность</th>
+                <th>Data</th>
+                <th>Rampa</th>
+                <th>Pojazd</th>
+                <th>Typ akcji</th>
+                <th>Przewoźnik</th>
+                <th>Palety</th>
+                <th>Czas trwania</th>
               </tr>
             </thead>
             <tbody>
               {(loader.data ?? []).map((row) => (
                 <tr key={row.session.id}>
-                  <td data-label="Дата">{formatDateTime(row.session.startedAt)}</td>
-                  <td data-label="Машина">{row.vehicleCode}</td>
-                  <td data-label="Тип акции">{row.actionTypeName}</td>
-                  <td data-label="Перевозчик">{row.carrierName}</td>
-                  <td data-label="Палеты">{row.session.palletsCompletedInSession}</td>
-                  <td data-label="Длительность">{formatMinutes(row.session.durationMinutes)}</td>
+                  <td data-label="Data">{formatDateTime(row.session.startedAt)}</td>
+                  <td data-label="Rampa">{row.session.rampNumber}</td>
+                  <td data-label="Pojazd">{row.vehicleCode}</td>
+                  <td data-label="Typ akcji">{row.actionTypeName}</td>
+                  <td data-label="Przewoźnik">{row.carrierName}</td>
+                  <td data-label="Palety">{row.session.palletsCompletedInSession}</td>
+                  <td data-label="Czas trwania">{formatMinutes(row.session.durationMinutes)}</td>
                 </tr>
               ))}
             </tbody>

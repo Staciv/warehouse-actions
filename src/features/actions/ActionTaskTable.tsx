@@ -14,50 +14,50 @@ export const ActionTaskTable = ({ tasks }: Props) => {
     <Table>
       <thead>
         <tr>
-          <th>Машина</th>
-          <th>Перевозчик</th>
-          <th>Тип акции</th>
-          <th>Дата</th>
-          <th>Приоритет</th>
-          <th>Статус</th>
-          <th>Сейчас выполняет</th>
-          <th>Палеты</th>
+          <th>Pojazd</th>
+          <th>Przewoźnik</th>
+          <th>Typ akcji</th>
+          <th>Data</th>
+          <th>Priorytet</th>
+          <th>Status</th>
+          <th>Wykonuje teraz</th>
+          <th>Palety</th>
         </tr>
       </thead>
       <tbody>
         {tasks.map((task) => (
           <tr key={task.id}>
-            <td data-label="Машина">
+            <td data-label="Pojazd">
               <Link to={`/actions/${task.id}`} className={styles.truncate}>
                 {task.vehicleCode}
               </Link>
             </td>
-            <td data-label="Перевозчик">
+            <td data-label="Przewoźnik">
               <span className={styles.truncate}>{task.carrierName}</span>
             </td>
-            <td data-label="Тип акции">
+            <td data-label="Typ akcji">
               <span className={styles.truncate}>{task.actionTypeName}</span>
             </td>
-            <td data-label="Дата">
+            <td data-label="Data">
               <div className={styles.centerCell}>{formatDate(task.arrivalDate)}</div>
             </td>
-            <td data-label="Приоритет">
+            <td data-label="Priorytet">
               <div className={styles.centerCell}>
                 <PriorityBadge priority={task.priority} />
               </div>
             </td>
-            <td data-label="Статус">
+            <td data-label="Status">
               <div className={styles.centerCell}>
                 <StatusBadge status={task.status} />
               </div>
             </td>
-            <td data-label="Сейчас выполняет">
+            <td data-label="Wykonuje teraz">
               <span className={styles.truncate}>
                 {task.participantWorkerNames.length > 0 ? task.participantWorkerNames.join(', ') : '—'}
               </span>
             </td>
-            <td data-label="Палеты">
-              {task.completedPallets}/{task.totalPallets ?? '—'} (остаток: {task.remainingPallets})
+            <td data-label="Palety">
+              {task.completedPallets}/{task.totalPallets ?? '—'} (pozostało: {task.remainingPallets})
             </td>
           </tr>
         ))}

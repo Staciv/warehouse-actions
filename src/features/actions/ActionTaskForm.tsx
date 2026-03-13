@@ -56,13 +56,13 @@ export const ActionTaskForm = ({ carriers, actionTypes, initial, onSubmit, submi
     setError('');
 
     if (!canSubmit) {
-      setError('Заполните обязательные поля.');
+      setError('Uzupełnij wymagane pola.');
       return;
     }
 
     const parsedPallets = totalPallets ? Number(totalPallets) : null;
     if (parsedPallets !== null && (Number.isNaN(parsedPallets) || parsedPallets < 0)) {
-      setError('Количество палет должно быть числом 0 или больше.');
+      setError('Liczba palet musi być liczbą równą 0 lub większą.');
       return;
     }
 
@@ -90,7 +90,7 @@ export const ActionTaskForm = ({ carriers, actionTypes, initial, onSubmit, submi
         setWorkerComment('');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось сохранить акцию');
+      setError(err instanceof Error ? err.message : 'Nie udało się zapisać akcji');
     } finally {
       setSubmitting(false);
     }
@@ -100,7 +100,7 @@ export const ActionTaskForm = ({ carriers, actionTypes, initial, onSubmit, submi
     <Card>
       <form className="stack" onSubmit={handleSubmit}>
         <div className="formGrid">
-          <Field label="Перевозчик">
+          <Field label="Przewoźnik">
             <Select value={carrierId} onChange={(event) => setCarrierId(event.target.value)}>
               {carriers.map((carrier) => (
                 <option key={carrier.id} value={carrier.id}>
@@ -110,7 +110,7 @@ export const ActionTaskForm = ({ carriers, actionTypes, initial, onSubmit, submi
             </Select>
           </Field>
 
-          <Field label="Тип акции">
+          <Field label="Typ akcji">
             <Select value={actionTypeId} onChange={(event) => setActionTypeId(event.target.value)}>
               {actionTypes.map((type) => (
                 <option key={type.id} value={type.id}>
@@ -120,56 +120,56 @@ export const ActionTaskForm = ({ carriers, actionTypes, initial, onSubmit, submi
             </Select>
           </Field>
 
-          <Field label="Машина / код">
+          <Field label="Pojazd / kod">
             <Input value={vehicleCode} onChange={(event) => setVehicleCode(event.target.value)} required />
           </Field>
 
-          <Field label="Дата приезда">
+          <Field label="Data przyjazdu">
             <Input type="date" value={arrivalDate} onChange={(event) => setArrivalDate(event.target.value)} required />
           </Field>
 
-          <Field label="Время приезда">
+          <Field label="Godzina przyjazdu">
             <Input type="time" value={arrivalTime} onChange={(event) => setArrivalTime(event.target.value)} />
           </Field>
 
-          <Field label="Общее количество палет">
+          <Field label="Całkowita liczba palet">
             <Input
               type="number"
               min={0}
               value={totalPallets}
               onChange={(event) => setTotalPallets(event.target.value)}
-              placeholder="Пока неизвестно"
+              placeholder="Jeszcze nieznane"
             />
           </Field>
 
-          <Field label="Приоритет">
+          <Field label="Priorytet">
             <Select
               value={priority}
               onChange={(event) => setPriority(Number(event.target.value) as TaskPriority)}
             >
-              <option value={1}>Низкий</option>
-              <option value={2}>Обычный</option>
-              <option value={3}>Высокий</option>
-              <option value={4}>Срочно</option>
+              <option value={1}>Niski</option>
+              <option value={2}>Normalny</option>
+              <option value={3}>Wysoki</option>
+              <option value={4}>Pilny</option>
             </Select>
           </Field>
         </div>
 
-        <Field label="Комментарий администрации">
+        <Field label="Komentarz administracji">
           <TextArea value={internalComment} onChange={(event) => setInternalComment(event.target.value)} rows={2} />
         </Field>
 
-        <Field label="Комментарий для работника">
+        <Field label="Komentarz dla pracownika">
           <TextArea value={workerComment} onChange={(event) => setWorkerComment(event.target.value)} rows={2} />
         </Field>
 
-        <Field label="Примечание">
+        <Field label="Notatka">
           <TextArea value={note} onChange={(event) => setNote(event.target.value)} rows={2} />
         </Field>
 
         {error ? <div style={{ color: '#c63d3d' }}>{error}</div> : null}
         <Button type="submit" disabled={!canSubmit || submitting}>
-          {submitting ? 'Сохранение...' : submitLabel}
+          {submitting ? 'Zapisywanie...' : submitLabel}
         </Button>
       </form>
     </Card>

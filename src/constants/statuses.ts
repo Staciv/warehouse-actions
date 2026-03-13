@@ -1,24 +1,24 @@
 import type { TaskPriority, TaskStatus } from '../types/domain';
 
-export const STATUS_LABELS: Record<TaskStatus, string> = {
-  planned: 'Запланировано',
-  executing: 'Выполняется',
-  cancelled: 'Отменено',
-  draft: 'Черновик',
-  inactive: 'Неактивно',
-  active: 'Активно',
-  in_progress: 'В процессе',
-  partial: 'Частично выполнено',
-  completed: 'Завершено',
-  deferred: 'Отложено',
-  archived: 'Архив'
+export const STATUS_I18N_KEYS: Record<TaskStatus, string> = {
+  planned: 'status.planned',
+  executing: 'status.executing',
+  cancelled: 'status.cancelled',
+  draft: 'status.draft',
+  inactive: 'status.inactive',
+  active: 'status.active',
+  in_progress: 'status.in_progress',
+  partial: 'status.partial',
+  completed: 'status.completed',
+  deferred: 'status.deferred',
+  archived: 'status.archived'
 };
 
-export const PRIORITY_LABELS: Record<TaskPriority, string> = {
-  1: 'Низкий',
-  2: 'Обычный',
-  3: 'Высокий',
-  4: 'Срочно'
+export const PRIORITY_I18N_KEYS: Record<TaskPriority, string> = {
+  1: 'priority.1',
+  2: 'priority.2',
+  3: 'priority.3',
+  4: 'priority.4'
 };
 
 export const PRIORITY_ORDER: TaskPriority[] = [4, 3, 2, 1];

@@ -9,7 +9,10 @@ let repository: Repository | null = null;
 export const getRepository = (): Repository => {
   if (repository) return repository;
 
-  if (isFirebaseMode && isFirebaseConfigured) {
+  if (isFirebaseMode) {
+    if (!isFirebaseConfigured) {
+      throw new Error('VITE_DATA_MODE=firebase, ale Firebase env nie jest skonfigurowany. Sprawdź .env');
+    }
     repository = new FirebaseRepository();
     return repository;
   }

@@ -6,10 +6,12 @@ import { Field } from '../components/ui/Field';
 import { Input } from '../components/ui/Input';
 import { ROUTES } from '../constants/routes';
 import { useAuth } from '../features/auth/AuthContext';
+import { useI18n } from '../shared/i18n/I18nContext';
 import styles from './page.module.css';
 
 export const LoginPage = () => {
   const { user, login } = useAuth();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [loginValue, setLoginValue] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +30,7 @@ export const LoginPage = () => {
       await login(loginValue.trim(), password);
       navigate(ROUTES.dashboard);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка входа');
+      setError(err instanceof Error ? err.message : t('login.error'));
     } finally {
       setLoading(false);
     }
@@ -39,11 +41,11 @@ export const LoginPage = () => {
       <Card>
         <form onSubmit={submit} className="stack">
           <div>
-            <h1 className={styles.title}>Вход в WMS Special Ops</h1>
-            <div className={styles.subtitle}>Внутренний логистический учёт</div>
+            <h1 className={styles.title}>{t('login.title')}</h1>
+            <div className={styles.subtitle}>{t('login.subtitle')}</div>
           </div>
 
-          <Field label="Логин">
+          <Field label={t('login.login')}>
             <Input
               value={loginValue}
               onChange={(e) => setLoginValue(e.target.value)}
@@ -54,7 +56,7 @@ export const LoginPage = () => {
               required
             />
           </Field>
-          <Field label="Пароль">
+          <Field label={t('login.password')}>
             <Input
               type="password"
               value={password}
@@ -69,12 +71,10 @@ export const LoginPage = () => {
 
           {error ? <div style={{ color: '#c63d3d' }}>{error}</div> : null}
           <Button type="submit" disabled={loading}>
-            {loading ? 'Вход...' : 'Войти'}
+            {loading ? t('login.submitting') : t('login.submit')}
           </Button>
 
-          <div className="kpi">
-            Демо: superadmin/superadmin123, admin1/admin123, worker1/worker123
-          </div>
+          <div className="kpi">{t('login.demo')}</div>
         </form>
       </Card>
     </div>

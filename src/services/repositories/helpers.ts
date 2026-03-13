@@ -24,19 +24,19 @@ export const byIsActive = <T extends { isActive: boolean }>(rows: T[]) => rows.f
 
 export const getCarrierSnapshot = (carriers: Carrier[], carrierId: string) => {
   const found = carriers.find((carrier) => carrier.id === carrierId);
-  if (!found) throw new Error('Перевозчик не найден');
+  if (!found) throw new Error('Nie znaleziono przewoźnika');
   return found.name;
 };
 
 export const getActionTypeSnapshot = (types: ActionType[], actionTypeId: string) => {
   const found = types.find((item) => item.id === actionTypeId);
-  if (!found) throw new Error('Тип акции не найден');
+  if (!found) throw new Error('Nie znaleziono typu akcji');
   return found.name;
 };
 
 export const getUserSnapshot = (users: User[], userId: string) => {
   const found = users.find((user) => user.id === userId);
-  if (!found) throw new Error('Пользователь не найден');
+  if (!found) throw new Error('Nie znaleziono użytkownika');
   return found.displayName;
 };
 
@@ -89,3 +89,8 @@ export const normalizeTaskRow = (task: ActionTask): ActionTask => {
     participantWorkerNames: task.participantWorkerNames ?? []
   };
 };
+
+export const sanitizeUserForClient = (user: User): User => ({
+  ...user,
+  passwordHash: ''
+});

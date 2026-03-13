@@ -64,6 +64,21 @@
   backdrop-filter: blur(14px);
 }
 
+.topControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.langControl {
+  min-width: 128px;
+}
+
+.mobileLang {
+  display: none;
+  min-width: 112px;
+}
+
 .pageTitle {
   font-size: 20px;
   font-weight: 700;
@@ -232,6 +247,10 @@
     display: inline-flex;
   }
 
+  .langControl {
+    min-width: 116px;
+  }
+
   .workerShell {
     padding: 10px 10px calc(98px + env(safe-area-inset-bottom));
   }
@@ -245,6 +264,10 @@
 
   .workerNav {
     display: none;
+  }
+
+  .mobileLang {
+    display: block;
   }
 
   .workerMain {
@@ -270,6 +293,11 @@
     font-size: 14px;
   }
 
+  .topControls {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
   .mobileBottomNav {
     left: 8px;
     right: 8px;
@@ -282,5 +310,9 @@
     flex-basis: calc(33.333% - 6px);
     font-size: 12px;
     padding: 10px 8px;
+  }
+
+  .mobileLang {
+    min-width: 102px;
   }
 }

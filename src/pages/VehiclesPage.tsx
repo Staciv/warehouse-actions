@@ -13,6 +13,7 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { useReferenceData } from '../hooks/useReferenceData';
 import { useTasks } from '../hooks/useTasks';
 import { getRepository } from '../services/repositories';
+import { useI18n } from '../shared/i18n/I18nContext';
 import { formatDate } from '../shared/utils/date';
 import type { ActionTask } from '../types/domain';
 import styles from './page.module.css';
@@ -28,6 +29,7 @@ interface VehicleGroup {
 
 export const VehiclesPage = () => {
   const { user } = useAuth();
+  const { t } = useI18n();
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [carrierId, setCarrierId] = useState('all');
@@ -82,7 +84,7 @@ export const VehiclesPage = () => {
     if (!user || !editingGroup) return;
 
     if (!editVehicleCode.trim() || !editArrivalDate || !editCarrierId) {
-      setEditError('Заполните обязательные поля для обновления машины.');
+      setEditError('Uzupełnij wymagane pola, aby zaktualizować pojazd.');
       return;
     }
 
@@ -110,7 +112,7 @@ export const VehiclesPage = () => {
       setEditingVehicleCode(null);
       await reload(filters);
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Не удалось обновить машину');
+      setEditError(err instanceof Error ? err.message : 'Nie udało się zaktualizować pojazdu');
     } finally {
       setSavingEdit(false);
     }
@@ -118,18 +120,18 @@ export const VehiclesPage = () => {
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>Машины</h1>
+      <h1 className={styles.title}>{t('page.vehicles.title')}</h1>
       <Card>
         <div className="formGrid">
-          <Field label="Дата с">
+          <Field label="Data od">
             <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
           </Field>
-          <Field label="Дата по">
+          <Field label="Data do">
             <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
           </Field>
-          <Field label="Перевозчик">
+          <Field label="Przewoźnik">
             <Select value={carrierId} onChange={(e) => setCarrierId(e.target.value)}>
-              <option value="all">Все</option>
+              <option value="all">Wszystkie</option>
               {carriers.map((carrier) => (
                 <option key={carrier.id} value={carrier.id}>
                   {carrier.name}
@@ -137,8 +139,8 @@ export const VehiclesPage = () => {
               ))}
             </Select>
           </Field>
-          <Field label="Машина">
-            <Input value={vehicleQuery} onChange={(e) => setVehicleQuery(e.target.value)} placeholder="Номер/код" />
+          <Field label="Pojazd">
+            <Input value={vehicleQuery} onChange={(e) => setVehicleQuery(e.target.value)} placeholder="Numer/kod" />
           </Field>
         </div>
       </Card>
@@ -146,12 +148,12 @@ export const VehiclesPage = () => {
       {editingGroup ? (
         <Card>
           <form onSubmit={saveVehicleEdit} className="stack">
-            <h3>Редактирование машины: {editingGroup.vehicleCode}</h3>
+            <h3>Edycja pojazdu: {editingGroup.vehicleCode}</h3>
             <div className="formGrid">
-              <Field label="Номер / код машины">
+              <Field label="Numer / kod pojazdu">
                 <Input value={editVehicleCode} onChange={(e) => setEditVehicleCode(e.target.value)} required />
               </Field>
-              <Field label="Перевозчик">
+              <Field label="Przewoźnik">
                 <Select value={editCarrierId} onChange={(e) => setEditCarrierId(e.target.value)}>
                   {carriers.map((carrier) => (
                     <option key={carrier.id} value={carrier.id}>
@@ -160,10 +162,10 @@ export const VehiclesPage = () => {
                   ))}
                 </Select>
               </Field>
-              <Field label="Дата приезда">
+              <Field label="Data przyjazdu">
                 <Input type="date" value={editArrivalDate} onChange={(e) => setEditArrivalDate(e.target.value)} required />
               </Field>
-              <Field label="Время приезда">
+              <Field label="Godzina przyjazdu">
                 <Input type="time" value={editArrivalTime} onChange={(e) => setEditArrivalTime(e.target.value)} />
               </Field>
             </div>
@@ -171,10 +173,10 @@ export const VehiclesPage = () => {
             {editError ? <div style={{ color: '#c63d3d' }}>{editError}</div> : null}
             <div className="inlineActions">
               <Button type="submit" disabled={savingEdit}>
-                {savingEdit ? 'Сохранение...' : 'Сохранить изменения'}
+                {savingEdit ? 'Zapisywanie...' : 'Zapisz zmiany'}
               </Button>
               <Button type="button" variant="secondary" onClick={() => setEditingVehicleCode(null)}>
-                Отмена
+                Anuluj
               </Button>
             </div>
           </form>
@@ -184,31 +186,31 @@ export const VehiclesPage = () => {
       <Card>
         {loading ? <Loader /> : null}
         {error ? <div style={{ color: '#c63d3d' }}>{error}</div> : null}
-        {!loading && grouped.length === 0 ? <EmptyState text="Машин по фильтрам не найдено" /> : null}
+        {!loading && grouped.length === 0 ? <EmptyState text="Nie znaleziono pojazdów dla wybranych filtrów" /> : null}
         {!loading && grouped.length > 0 ? (
           <Table>
             <thead>
               <tr>
-                <th>Машина</th>
-                <th>Перевозчик</th>
-                <th>Дата</th>
-                <th>Время</th>
-                <th>Акции</th>
+                <th>Pojazd</th>
+                <th>Przewoźnik</th>
+                <th>Data</th>
+                <th>Godzina</th>
+                <th>Akcje</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {grouped.map((row) => (
                 <tr key={row.vehicleCode}>
-                  <td data-label="Машина">
+                  <td data-label="Pojazd">
                     <span className="truncateText">{row.vehicleCode}</span>
                   </td>
-                  <td data-label="Перевозчик">
+                  <td data-label="Przewoźnik">
                     <span className="truncateText">{row.carrierName}</span>
                   </td>
-                  <td data-label="Дата">{formatDate(row.arrivalDate)}</td>
-                  <td data-label="Время">{row.arrivalTime || '—'}</td>
-                  <td data-label="Акции">
+                  <td data-label="Data">{formatDate(row.arrivalDate)}</td>
+                  <td data-label="Godzina">{row.arrivalTime || '—'}</td>
+                  <td data-label="Akcje">
                     <div className="stack">
                       {row.tasks.map((task) => (
                         <div key={task.id}>
@@ -217,9 +219,9 @@ export const VehiclesPage = () => {
                       ))}
                     </div>
                   </td>
-                  <td data-label="Действия">
+                  <td data-label="Akcje">
                     <Button variant="secondary" onClick={() => openEdit(row)}>
-                      Редактировать
+                      Edytuj
                     </Button>
                   </td>
                 </tr>

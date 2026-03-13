@@ -8,12 +8,14 @@ import { Table } from '../components/ui/Table';
 import { useAuth } from '../features/auth/AuthContext';
 import { getRepository } from '../services/repositories';
 import { seedCarriers } from '../services/seed/seedData';
+import { useI18n } from '../shared/i18n/I18nContext';
 import { createId } from '../shared/utils/id';
 import type { Carrier } from '../types/domain';
 import styles from './page.module.css';
 
 export const CarriersPage = () => {
   const { user } = useAuth();
+  const { t } = useI18n();
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
@@ -50,19 +52,19 @@ export const CarriersPage = () => {
       setCode('');
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось добавить перевозчика');
+      setError(err instanceof Error ? err.message : 'Nie udało się dodać przewoźnika');
     }
   };
 
   const deleteCarrier = async (carrier: Carrier) => {
     setError('');
-    const confirmed = window.confirm(`Удалить перевозчика "${carrier.name}"?`);
+    const confirmed = window.confirm(`Usunąć przewoźnika "${carrier.name}"?`);
     if (!confirmed) return;
     try {
       await getRepository().deleteCarrier(carrier.id, user);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось удалить перевозчика');
+      setError(err instanceof Error ? err.message : 'Nie udało się usunąć przewoźnika');
     }
   };
 
@@ -88,26 +90,26 @@ export const CarriersPage = () => {
 
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось добавить стандартных перевозчиков');
+      setError(err instanceof Error ? err.message : 'Nie udało się dodać standardowych przewoźników');
     }
   };
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>Перевозчики</h1>
+      <h1 className={styles.title}>{t('page.carriers.title')}</h1>
       <Card>
         <form onSubmit={addCarrier} className="formGrid">
-          <Field label="Название">
+          <Field label="Nazwa">
             <Input value={name} onChange={(e) => setName(e.target.value)} required />
           </Field>
-          <Field label="Код">
+          <Field label="Kod">
             <Input value={code} onChange={(e) => setCode(e.target.value)} />
           </Field>
-          <Button type="submit">Добавить</Button>
+          <Button type="submit">Dodaj</Button>
         </form>
         <div style={{ marginTop: 10 }}>
           <Button type="button" variant="secondary" onClick={importStandardCarriers}>
-            Добавить стандартный список
+            Dodaj standardową listę
           </Button>
         </div>
         {error ? <div style={{ color: '#c63d3d', marginTop: 8 }}>{error}</div> : null}
@@ -119,23 +121,23 @@ export const CarriersPage = () => {
           <Table>
             <thead>
               <tr>
-                <th>Название</th>
-                <th>Код</th>
+                <th>Nazwa</th>
+                <th>Kod</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {carriers.map((carrier) => (
                 <tr key={carrier.id}>
-                  <td data-label="Название">
+                  <td data-label="Nazwa">
                     <span className="truncateText">{carrier.name}</span>
                   </td>
-                  <td data-label="Код">
+                  <td data-label="Kod">
                     <span className="truncateText">{carrier.code || '—'}</span>
                   </td>
-                  <td data-label="Действия">
+                  <td data-label="Akcje">
                     <Button variant="danger" onClick={() => deleteCarrier(carrier)}>
-                      Удалить
+                      Usuń
                     </Button>
                   </td>
                 </tr>

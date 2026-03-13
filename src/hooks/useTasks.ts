@@ -21,7 +21,7 @@ export const useTasks = (initialFilters?: ActionTaskFilters) => {
       const rows = await repository.getActionTasks(filters ?? initialFiltersRef.current);
       setTasks(rows);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось загрузить акции');
+      setError(err instanceof Error ? err.message : 'Nie udało się załadować akcji');
     } finally {
       setLoading(false);
     }

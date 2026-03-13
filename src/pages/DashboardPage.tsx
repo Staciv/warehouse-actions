@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { EmptyState, Loader } from '../components/ui/States';
@@ -7,52 +6,54 @@ import { useAuth } from '../features/auth/AuthContext';
 import { isAdminRole } from '../features/auth/guards';
 import { AttentionList } from '../features/actions/AttentionList';
 import { SummaryCards } from '../features/actions/SummaryCards';
+import { ActiveActionsList } from '../features/live-ops/ActiveActionsList';
+import { ActiveWorkersPanel } from '../features/live-ops/ActiveWorkersPanel';
+import panelStyles from '../features/live-ops/LivePanels.module.css';
+import { useLiveOpsOverview } from '../features/live-ops/useLiveOpsOverview';
 import { useTasks } from '../hooks/useTasks';
+import { useI18n } from '../shared/i18n/I18nContext';
 import { formatDate } from '../shared/utils/date';
 import styles from './page.module.css';
 
 export const DashboardPage = () => {
   const { user } = useAuth();
+  const { t } = useI18n();
   const { tasks, loading, error } = useTasks();
   const [showAllDates, setShowAllDates] = useState(false);
+  const live = useLiveOpsOverview(user);
 
   if (!user) return null;
+
   if (loading) return <Loader />;
   if (error) return <div style={{ color: '#c63d3d' }}>{error}</div>;
 
   if (!isAdminRole(user.role)) {
+    const todayIso = new Date().toISOString().slice(0, 10);
     const available = tasks.filter((task) => task.totalPallets !== null && task.remainingPallets > 0);
+    const workerActions = live.actions.filter((action) => action.status !== 'completed').slice(0, 6);
     return (
       <div className={styles.page}>
-        <div className={styles.title}>Панель работника</div>
+        <div className={styles.title}>{t('dashboard.workerPanel')}</div>
         <SummaryCards
           items={[
-            { label: 'Доступные акции', value: available.length },
             {
-              label: 'Выполняются',
+              label: t('dashboard.availableActions'),
+              value: available.length,
+              to: '/actions?status=all&onlyActive=active'
+            },
+            {
+              label: t('dashboard.executing'),
               value: tasks.filter((task) => task.status === 'executing').length,
               to: '/actions?status=executing&onlyActive=active'
             },
-            { label: 'Завершённые сегодня', value: tasks.filter((task) => task.status === 'completed').length }
+            {
+              label: t('common.todayCompleted'),
+              value: tasks.filter((task) => task.status === 'completed' && task.updatedAt.slice(0, 10) === todayIso).length,
+              to: `/actions?status=completed&fromDate=${todayIso}&toDate=${todayIso}`
+            }
           ]}
         />
-        <Card>
-          <h3 style={{ marginBottom: 8 }}>Активные акции</h3>
-          {available.length === 0 ? (
-            <EmptyState text="Сейчас нет активных задач" />
-          ) : (
-            <div className="stack">
-              {available.slice(0, 8).map((task) => (
-                <div key={task.id}>
-                  <Link to={`/actions/${task.id}`}>{task.vehicleCode}</Link>
-                  <div className="kpi">
-                    {task.actionTypeName} · {task.carrierName} · осталось {task.remainingPallets}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+        {available.length === 0 ? <EmptyState text={t('dashboard.noActiveTasks')} /> : <ActiveActionsList actions={workerActions} />}
       </div>
     );
   }
@@ -65,20 +66,19 @@ export const DashboardPage = () => {
   ).size;
   const todayIso = new Date().toISOString().slice(0, 10);
   const items = [
-    { label: 'Запланировано', value: tasksInRange.filter((task) => task.status === 'planned').length },
-    { label: 'Выполняется', value: tasksInRange.filter((task) => task.status === 'executing').length },
-    { label: 'Отменено', value: tasksInRange.filter((task) => task.status === 'cancelled').length },
+    { label: t('dashboard.planned'), value: tasksInRange.filter((task) => task.status === 'planned').length },
+    { label: t('dashboard.executing'), value: tasksInRange.filter((task) => task.status === 'executing').length },
+    { label: t('dashboard.cancelled'), value: tasksInRange.filter((task) => task.status === 'cancelled').length },
     {
-      label: 'Черновики',
+      label: t('dashboard.drafts'),
       value: tasksInRange.filter((task) => task.status === 'draft' || task.status === 'inactive').length
     },
     {
-      label: 'Завершено сегодня',
+      label: t('common.todayCompleted'),
       value: tasks.filter((task) => task.status === 'completed' && task.updatedAt.slice(0, 10) === todayIso).length
     },
-    { label: 'Незавершённые машины', value: unfinishedMachinesCount }
+    { label: t('dashboard.unfinishedVehicles'), value: unfinishedMachinesCount }
   ];
-  const executingNow = tasksInRange.filter((task) => task.status === 'executing' && task.participantWorkerNames.length > 0);
   const unfinishedByDateMap = new Map<string, number>();
   tasksInRange
     .filter((task) => task.status !== 'completed' && task.status !== 'cancelled' && task.status !== 'archived')
@@ -94,17 +94,17 @@ export const DashboardPage = () => {
   return (
     <div className={styles.page}>
       <div>
-        <h1 className={styles.title}>Dashboard</h1>
-        <div className={styles.subtitle}>Сводка по складу и индикаторы внимания</div>
+        <h1 className={styles.title}>{t('dashboard.title')}</h1>
+        <div className={styles.subtitle}>{t('dashboard.subtitle')}</div>
       </div>
 
       <SummaryCards items={items} />
       <div className={styles.split}>
         <AttentionList tasks={tasks} />
         <Card>
-          <h3 style={{ marginBottom: 10 }}>Дата и количество незавершённых акций</h3>
+          <h3 style={{ marginBottom: 10 }}>{t('dashboard.unfinishedByDate')}</h3>
           {unfinishedByDate.length === 0 ? (
-            <EmptyState text="Нет незавершённых акций за выбранный период" />
+            <EmptyState text={t('dashboard.noUnfinished')} />
           ) : (
             <div className="stack">
               {visibleUnfinishedByDate.map((row) => (
@@ -116,7 +116,7 @@ export const DashboardPage = () => {
               {unfinishedByDate.length > 6 ? (
                 <div>
                   <Button variant="secondary" onClick={() => setShowAllDates((value) => !value)}>
-                    {showAllDates ? 'Свернуть' : 'Показать больше'}
+                    {showAllDates ? t('common.collapse') : t('common.showMore')}
                   </Button>
                 </div>
               ) : null}
@@ -125,23 +125,16 @@ export const DashboardPage = () => {
         </Card>
       </div>
 
-      <Card>
-        <h3 style={{ marginBottom: 10 }}>Кто сейчас выполняет какую акцию</h3>
-        {executingNow.length === 0 ? (
-          <EmptyState text="Сейчас нет активных исполнителей" />
-        ) : (
-          <div className="stack">
-            {executingNow.map((task) => (
-              <div key={task.id}>
-                <Link to={`/actions/${task.id}`}>{task.vehicleCode}</Link>
-                <div className="kpi">
-                  {task.actionTypeName} · {task.participantWorkerNames.join(', ')}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+      <div className={panelStyles.grid}>
+        {live.loading ? <Loader text={t('live.refresh')} /> : null}
+        {live.error ? <div style={{ color: '#c63d3d' }}>{live.error}</div> : null}
+        {!live.loading && !live.error ? (
+          <>
+            <ActiveWorkersPanel workers={live.workers} />
+            <ActiveActionsList actions={live.actions.filter((action) => action.status === 'in_progress')} />
+          </>
+        ) : null}
+      </div>
     </div>
   );
 };

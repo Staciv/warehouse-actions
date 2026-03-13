@@ -16,7 +16,7 @@ let dbInstance: ReturnType<typeof getFirestore> | null = null;
 
 export const getDb = () => {
   if (!isFirebaseConfigured) {
-    throw new Error('Firebase env не настроен');
+    throw new Error('Firebase env nie jest skonfigurowany');
   }
 
   if (!dbInstance) {

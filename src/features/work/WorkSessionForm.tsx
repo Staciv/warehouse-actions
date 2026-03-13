@@ -8,7 +8,14 @@ import type { ActionTask } from '../../types/domain';
 
 interface Props {
   task: ActionTask;
-  onSubmit: (payload: { pallets: number; startedAt: string; endedAt: string; comment?: string }) => Promise<void>;
+  fixedStartedAt: string;
+  onSubmit: (payload: {
+    pallets: number;
+    rampNumber: string;
+    startedAt: string;
+    endedAt: string;
+    comment?: string;
+  }) => Promise<void>;
 }
 
 const toLocalDateTimeValue = () => {
@@ -17,9 +24,9 @@ const toLocalDateTimeValue = () => {
   return d.toISOString().slice(0, 16);
 };
 
-export const WorkSessionForm = ({ task, onSubmit }: Props) => {
+export const WorkSessionForm = ({ task, fixedStartedAt, onSubmit }: Props) => {
   const [pallets, setPallets] = useState('');
-  const [startedAt, setStartedAt] = useState(toLocalDateTimeValue());
+  const [rampNumber, setRampNumber] = useState('');
   const [endedAt, setEndedAt] = useState(toLocalDateTimeValue());
   const [comment, setComment] = useState('');
   const [error, setError] = useState('');
@@ -31,7 +38,11 @@ export const WorkSessionForm = ({ task, onSubmit }: Props) => {
 
     const numeric = Number(pallets);
     if (!Number.isFinite(numeric) || numeric <= 0) {
-      setError('Укажите корректное количество палет.');
+      setError('Podaj poprawną liczbę palet.');
+      return;
+    }
+    if (!rampNumber.trim()) {
+      setError('Podaj numer rampy.');
       return;
     }
 
@@ -39,14 +50,16 @@ export const WorkSessionForm = ({ task, onSubmit }: Props) => {
     try {
       await onSubmit({
         pallets: numeric,
-        startedAt: new Date(startedAt).toISOString(),
+        rampNumber: rampNumber.trim(),
+        startedAt: fixedStartedAt,
         endedAt: new Date(endedAt).toISOString(),
         comment
       });
       setPallets('');
+      setRampNumber('');
       setComment('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось сохранить выполнение');
+      setError(err instanceof Error ? err.message : 'Nie udało się zapisać wykonania');
     } finally {
       setSaving(false);
     }
@@ -55,25 +68,28 @@ export const WorkSessionForm = ({ task, onSubmit }: Props) => {
   return (
     <Card>
       <form onSubmit={submit} className="stack">
-        <h3>Внести выполнение</h3>
-        <div className="kpi">Осталось палет: {task.remainingPallets}</div>
+        <h3>Dodaj wykonanie</h3>
+        <div className="kpi">Pozostałe palety: {task.remainingPallets}</div>
         <div className="formGrid">
-          <Field label="Сколько палет сделал">
+          <Field label="Ile palet wykonano">
             <Input type="number" min={1} max={task.remainingPallets} value={pallets} onChange={(e) => setPallets(e.target.value)} />
           </Field>
-          <Field label="Время от">
-            <Input type="datetime-local" value={startedAt} onChange={(e) => setStartedAt(e.target.value)} />
+          <Field label="Numer rampy">
+            <Input value={rampNumber} onChange={(e) => setRampNumber(e.target.value)} placeholder="Np. R-12" />
           </Field>
-          <Field label="Время до">
+          <Field label="Czas rozpoczęcia (automatycznie)">
+            <Input value={new Date(fixedStartedAt).toLocaleString('pl-PL')} readOnly />
+          </Field>
+          <Field label="Czas do">
             <Input type="datetime-local" value={endedAt} onChange={(e) => setEndedAt(e.target.value)} />
           </Field>
         </div>
-        <Field label="Комментарий">
+        <Field label="Komentarz">
           <TextArea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} />
         </Field>
         {error ? <div style={{ color: '#c63d3d' }}>{error}</div> : null}
         <Button type="submit" disabled={saving || task.remainingPallets <= 0}>
-          {saving ? 'Сохранение...' : 'Сохранить выполнение'}
+          {saving ? 'Zapisywanie...' : 'Zapisz wykonanie'}
         </Button>
       </form>
     </Card>

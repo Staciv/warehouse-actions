@@ -9,12 +9,14 @@ import { Table } from '../components/ui/Table';
 import { useAuth } from '../features/auth/AuthContext';
 import { isSuperAdmin } from '../features/auth/guards';
 import { getRepository } from '../services/repositories';
+import { useI18n } from '../shared/i18n/I18nContext';
 import { createId } from '../shared/utils/id';
 import type { User } from '../types/domain';
 import styles from './page.module.css';
 
 export const WorkersPage = () => {
   const { user } = useAuth();
+  const { t } = useI18n();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -27,14 +29,16 @@ export const WorkersPage = () => {
   const canManageSuperadmin = user ? isSuperAdmin(user.role) : false;
 
   const load = async () => {
-    const rows = await getRepository().getUsers();
+    if (!user) return;
+    const rows = await getRepository().getUsers(user);
     setUsers(rows);
     setLoading(false);
   };
 
   useEffect(() => {
+    if (!user) return;
     void load();
-  }, []);
+  }, [user]);
 
   if (!user) return null;
 
@@ -60,13 +64,13 @@ export const WorkersPage = () => {
       setRole('worker');
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось создать сотрудника');
+      setError(err instanceof Error ? err.message : 'Nie udało się utworzyć pracownika');
     }
   };
 
   const toggleActive = async (target: User) => {
     if (target.id === user.id && target.isActive) {
-      setError('Нельзя деактивировать текущего пользователя');
+      setError('Nie można dezaktywować aktualnie zalogowanego użytkownika');
       return;
     }
     await getRepository().updateUser(target.id, { isActive: !target.isActive }, user);
@@ -74,38 +78,46 @@ export const WorkersPage = () => {
   };
 
   const resetPassword = async (target: User) => {
-    const next = window.prompt(`Новый пароль для ${target.displayName}`, 'worker123');
+    const next = window.prompt(`Nowe hasło dla ${target.displayName}`, 'worker123');
     if (!next) return;
     await getRepository().updateUser(target.id, { password: next }, user);
     await load();
   };
 
+  const workerAvailabilityLabel = (status: User['availabilityStatus']) => {
+    if (status === 'in_action' || status === 'busy') return 'W pracy';
+    if (status === 'paused') return 'Pauza';
+    if (status === 'offline') return 'Offline';
+    if (status === 'completed') return 'Zakończył';
+    return 'Dostępny';
+  };
+
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>Сотрудники</h1>
+      <h1 className={styles.title}>{t('page.workers.title')}</h1>
 
       <Card>
         <form onSubmit={submit} className="formGrid">
-          <Field label="Имя">
+          <Field label="Imię">
             <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
           </Field>
-          <Field label="Фамилия">
+          <Field label="Nazwisko">
             <Input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
           </Field>
-          <Field label="Логин">
+          <Field label="Login">
             <Input value={login} onChange={(e) => setLogin(e.target.value)} required />
           </Field>
-          <Field label="Пароль">
+          <Field label="Hasło">
             <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </Field>
-          <Field label="Роль">
+          <Field label="Rola">
             <Select value={role} onChange={(e) => setRole(e.target.value as User['role'])}>
-              <option value="worker">Работник</option>
-              <option value="admin">Администратор</option>
-              {canManageSuperadmin ? <option value="superadmin">Главный админ</option> : null}
+              <option value="worker">Pracownik</option>
+              <option value="admin">Administrator</option>
+              {canManageSuperadmin ? <option value="superadmin">Superadministrator</option> : null}
             </Select>
           </Field>
-          <Button type="submit">Создать сотрудника</Button>
+          <Button type="submit">Utwórz pracownika</Button>
         </form>
         {error ? <div style={{ color: '#c63d3d', marginTop: 8 }}>{error}</div> : null}
       </Card>
@@ -116,33 +128,33 @@ export const WorkersPage = () => {
           <Table>
             <thead>
               <tr>
-                <th>Сотрудник</th>
-                <th>Логин</th>
-                <th>Роль</th>
-                <th>Статус</th>
-                <th>Занятость</th>
-                <th>Действия</th>
+                <th>Pracownik</th>
+                <th>Login</th>
+                <th>Rola</th>
+                <th>Status</th>
+                <th>Dostępność</th>
+                <th>Akcje</th>
               </tr>
             </thead>
             <tbody>
               {users.map((row) => (
                 <tr key={row.id}>
-                  <td data-label="Сотрудник">
+                  <td data-label="Pracownik">
                     <span className="truncateText">{row.displayName}</span>
                   </td>
-                  <td data-label="Логин">
+                  <td data-label="Login">
                     <span className="truncateText">{row.login}</span>
                   </td>
-                  <td data-label="Роль">{row.role}</td>
-                  <td data-label="Статус">{row.isActive ? 'active' : 'inactive'}</td>
-                  <td data-label="Занятость">{row.availabilityStatus === 'busy' ? 'В работе' : 'Доступен'}</td>
-                  <td data-label="Действия">
+                  <td data-label="Rola">{row.role}</td>
+                  <td data-label="Status">{row.isActive ? 'active' : 'inactive'}</td>
+                  <td data-label="Dostępność">{workerAvailabilityLabel(row.availabilityStatus)}</td>
+                  <td data-label="Akcje">
                     <div className="inlineActions">
                       <Button variant="secondary" onClick={() => toggleActive(row)}>
-                        {row.isActive ? 'Деактивировать' : 'Активировать'}
+                        {row.isActive ? 'Dezaktywuj' : 'Aktywuj'}
                       </Button>
                       <Button variant="secondary" onClick={() => resetPassword(row)}>
-                        Сбросить пароль
+                        Zresetuj hasło
                       </Button>
                     </div>
                   </td>

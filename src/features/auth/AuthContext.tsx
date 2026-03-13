@@ -18,7 +18,15 @@ const parseSession = (): AuthSession | null => {
   const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as AuthSession;
+    const parsed = JSON.parse(raw) as Partial<AuthSession> & { user?: User };
+    if (parsed.userId && parsed.loginAt) {
+      return { userId: parsed.userId, loginAt: parsed.loginAt };
+    }
+    // Legacy migration path: previous session format had full user object.
+    if (parsed.user?.id && parsed.loginAt) {
+      return { userId: parsed.user.id, loginAt: parsed.loginAt };
+    }
+    return null;
   } catch {
     return null;
   }
@@ -29,16 +37,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const session = parseSession();
-    if (session?.user) setUser(session.user);
-    setLoading(false);
+    const hydrate = async () => {
+      const session = parseSession();
+      if (!session) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const repository = getRepository();
+        const freshUser = await repository.getUserById(session.userId);
+        if (!freshUser || !freshUser.isActive) {
+          sessionStorage.removeItem(SESSION_STORAGE_KEY);
+          setUser(null);
+        } else {
+          setUser(freshUser);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void hydrate();
   }, []);
 
   const login = useCallback(async (loginValue: string, password: string) => {
     const repository = getRepository();
     const signedInUser = await repository.login({ login: loginValue, password });
     const session: AuthSession = {
-      user: signedInUser,
+      userId: signedInUser.id,
       loginAt: toIsoNow()
     };
     sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
@@ -52,18 +79,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const refreshUser = useCallback(async () => {
     const session = parseSession();
-    if (!session?.user) return;
+    if (!session?.userId) return;
 
     const repository = getRepository();
-    const users = await repository.getUsers();
-    const freshUser = users.find((entry) => entry.id === session.user.id);
+    const freshUser = await repository.getUserById(session.userId);
     if (!freshUser || !freshUser.isActive) {
       logout();
       return;
     }
 
     const nextSession: AuthSession = {
-      user: freshUser,
+      userId: freshUser.id,
       loginAt: session.loginAt
     };
 

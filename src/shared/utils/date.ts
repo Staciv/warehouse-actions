@@ -2,7 +2,7 @@ export const toIsoNow = () => new Date().toISOString();
 
 export const formatDate = (dateIso: string) => {
   if (!dateIso) return '—';
-  return new Intl.DateTimeFormat('ru-RU', {
+  return new Intl.DateTimeFormat('pl-PL', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit'
@@ -11,7 +11,7 @@ export const formatDate = (dateIso: string) => {
 
 export const formatDateTime = (dateIso: string) => {
   if (!dateIso) return '—';
-  return new Intl.DateTimeFormat('ru-RU', {
+  return new Intl.DateTimeFormat('pl-PL', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -21,11 +21,11 @@ export const formatDateTime = (dateIso: string) => {
 };
 
 export const formatMinutes = (minutes: number) => {
-  if (!Number.isFinite(minutes) || minutes < 0) return '0 мин';
+  if (!Number.isFinite(minutes) || minutes < 0) return '0 min';
   const hrs = Math.floor(minutes / 60);
   const mins = minutes % 60;
-  if (hrs === 0) return `${mins} мин`;
-  return `${hrs} ч ${mins} мин`;
+  if (hrs === 0) return `${mins} min`;
+  return `${hrs} h ${mins} min`;
 };
 
 export const toDateRangeBounds = (fromDate?: string, toDate?: string) => {

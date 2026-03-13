@@ -1,0 +1,96 @@
+.card {
+  display: grid;
+  gap: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(170, 208, 255, 0.24);
+  background: linear-gradient(150deg, rgba(18, 40, 68, 0.56), rgba(12, 28, 48, 0.46));
+  padding: 14px;
+}
+
+.head {
+  display: grid;
+  gap: 8px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f2f8ff;
+  min-width: 0;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.sub {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #bfd2ea;
+  font-size: 12px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(164, 198, 240, 0.36);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.inProgress {
+  background: rgba(240, 173, 92, 0.22);
+  color: #ffe5ca;
+  border-color: rgba(242, 189, 128, 0.4);
+}
+
+.planned {
+  background: rgba(111, 158, 221, 0.2);
+  color: #dcecff;
+  border-color: rgba(150, 190, 244, 0.38);
+}
+
+.completed {
+  background: rgba(54, 203, 130, 0.2);
+  color: #d4ffe7;
+  border-color: rgba(87, 222, 160, 0.42);
+}
+
+.workers {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.worker {
+  border: 1px solid rgba(157, 195, 243, 0.26);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 12px;
+  color: #d8e7f9;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 768px) {
+  .card {
+    border-radius: 16px;
+    padding: 12px;
+  }
+
+  .title {
+    font-size: 15px;
+  }
+}

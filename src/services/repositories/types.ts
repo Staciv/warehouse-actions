@@ -31,6 +31,7 @@ export interface UpdateActionTaskPayload extends Partial<CreateActionTaskPayload
 export interface CreateWorkSessionPayload {
   actionTaskId: string;
   workerId: string;
+  rampNumber: string;
   startedAt: string;
   endedAt: string;
   palletsCompletedInSession: number;
@@ -66,7 +67,8 @@ export interface Repository {
 
   login: (payload: AuthLoginPayload) => Promise<User>;
 
-  getUsers: () => Promise<User[]>;
+  getUserById: (id: string) => Promise<User | null>;
+  getUsers: (actor: User) => Promise<User[]>;
   createUser: (payload: CreateUserPayload, actor: User) => Promise<User>;
   updateUser: (id: string, payload: UpdateUserPayload, actor: User) => Promise<User>;
 
@@ -88,5 +90,5 @@ export interface Repository {
   getWorkSessions: (options?: QueryOptions) => Promise<WorkSession[]>;
   createWorkSession: (payload: CreateWorkSessionPayload, actor: User) => Promise<WorkSession>;
 
-  getAuditLogs: (entityType?: AuditLog['entityType'], entityId?: string) => Promise<AuditLog[]>;
+  getAuditLogs: (entityType: AuditLog['entityType'] | undefined, entityId: string | undefined, actor: User) => Promise<AuditLog[]>;
 }

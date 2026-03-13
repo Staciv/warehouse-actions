@@ -1,0 +1,44 @@
+.card {
+  display: grid;
+  gap: 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(168, 206, 255, 0.24);
+  background: rgba(16, 37, 63, 0.46);
+  padding: 12px;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #eff7ff;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.role {
+  color: #b8cbe4;
+  font-size: 12px;
+}
+
+.action {
+  font-size: 13px;
+  color: #dceaff;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  color: #c6d7ef;
+  font-size: 12px;
+}
