@@ -1,5 +1,5 @@
 import { MOCK_DB_STORAGE_KEY } from '../../constants/app';
-import { reconcileTaskStatus } from '../../entities/action-task';
+import { reconcileTaskStatus, validateRequestedTaskStatus } from '../../entities/action-task';
 import { calculateDurationMinutes, validateSessionInput } from '../../entities/work-session';
 import { toIsoNow } from '../../shared/utils/date';
 import { sha256 } from '../../shared/utils/hash';
@@ -198,6 +198,11 @@ export class MockRepository implements Repository {
     const existing = db.users.find((user) => user.id === id);
     if (!existing) throw new Error('Nie znaleziono użytkownika');
     assertCanManageUserRole(actor, payload.role ?? existing.role, existing);
+    if (payload.login && payload.login !== existing.login) {
+      if (db.users.some((user) => user.login === payload.login && user.id !== id)) {
+        throw new Error('Login jest już używany');
+      }
+    }
 
     const old = { ...existing };
     if (payload.firstName !== undefined) existing.firstName = payload.firstName;
@@ -363,6 +368,9 @@ export class MockRepository implements Repository {
     if (task.archived || task.status === 'archived' || task.status === 'cancelled') {
       throw new Error('Operacja jest niedostępna do uruchomienia');
     }
+    if (task.status === 'deferred' || task.status === 'inactive' || task.status === 'draft') {
+      throw new Error('Operacja ma status niedostępny do uruchomienia');
+    }
     if (task.totalPallets === null) {
       throw new Error('Najpierw podaj dokładną liczbę palet');
     }
@@ -491,6 +499,15 @@ export class MockRepository implements Repository {
       task.remainingPallets = total === null ? 0 : total - task.completedPallets;
     }
 
+    if (payload.status === 'archived') {
+      task.archived = true;
+    }
+
+    const statusValidationError = validateRequestedTaskStatus(task, payload.status, payload.archived);
+    if (statusValidationError) {
+      throw new Error(statusValidationError);
+    }
+
     const requestedStatus = payload.status;
 
     task.updatedByUserId = actor.id;
@@ -552,6 +569,7 @@ export class MockRepository implements Repository {
 
     const worker = db.users.find((user) => user.id === payload.workerId);
     if (!worker) throw new Error('Nie znaleziono pracownika');
+    if (!worker.isActive) throw new Error('Pracownik jest dezaktywowany');
 
     const validationError = validateSessionInput(
       task,

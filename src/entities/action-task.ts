@@ -63,9 +63,38 @@ export const reconcileTaskStatus = (task: ActionTask, requestedStatus?: TaskStat
   return normalizeTaskAfterProgress(task);
 };
 
+export const validateRequestedTaskStatus = (
+  task: ActionTask,
+  requestedStatus?: TaskStatus,
+  requestedArchived?: boolean
+): string | null => {
+  if (!requestedStatus) return null;
+
+  if (requestedStatus === 'archived' && requestedArchived === false) {
+    return 'Nie można ustawić statusu archiwalnego bez flagi archived.';
+  }
+
+  if (requestedStatus === 'completed' && task.remainingPallets > 0) {
+    return 'Nie można oznaczyć jako zakończone przy pozostałych paletach.';
+  }
+
+  if (requestedStatus === 'draft' && task.totalPallets !== null) {
+    return 'Status szkic wymaga braku potwierdzonego wolumenu palet.';
+  }
+
+  if (requestedStatus === 'inactive' && task.totalPallets !== null && task.totalPallets > 0) {
+    return 'Status nieaktywny jest dostępny tylko przy zerowym wolumenie.';
+  }
+
+  if ((requestedStatus === 'planned' || requestedStatus === 'executing') && task.totalPallets === null) {
+    return 'Nie można ustawić statusu operacyjnego bez całkowitej liczby palet.';
+  }
+
+  return null;
+};
+
 export const toOperationStatus = (status: TaskStatus): TaskStatus => {
   if (status === 'active') return 'planned';
   if (status === 'in_progress' || status === 'partial') return 'executing';
-  if (status === 'deferred') return 'cancelled';
   return status;
 };

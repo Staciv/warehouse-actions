@@ -11,7 +11,7 @@ import {
   setDoc,
   where
 } from 'firebase/firestore';
-import { normalizeTaskAfterProgress, reconcileTaskStatus } from '../../entities/action-task';
+import { normalizeTaskAfterProgress, reconcileTaskStatus, validateRequestedTaskStatus } from '../../entities/action-task';
 import { calculateDurationMinutes, validateSessionInput } from '../../entities/work-session';
 import { toIsoNow } from '../../shared/utils/date';
 import { sha256 } from '../../shared/utils/hash';
@@ -205,6 +205,12 @@ export class FirebaseRepository implements Repository {
     const existing = await readById<User>(collections.users, id);
     if (!existing) throw new Error('Nie znaleziono użytkownika');
     assertCanManageUserRole(actor, payload.role ?? existing.role, existing);
+    if (payload.login && payload.login !== existing.login) {
+      const allUsers = await readCollection<User>(collections.users);
+      if (allUsers.some((row) => row.login === payload.login && row.id !== id)) {
+        throw new Error('Login jest już używany');
+      }
+    }
 
     const old = { ...existing };
     const merged: User = {
@@ -372,6 +378,9 @@ export class FirebaseRepository implements Repository {
       const task = normalizeTaskRow(taskSnap.data() as ActionTask);
       if (task.archived || task.status === 'archived' || task.status === 'cancelled') {
         throw new Error('Operacja jest niedostępna do uruchomienia');
+      }
+      if (task.status === 'deferred' || task.status === 'inactive' || task.status === 'draft') {
+        throw new Error('Operacja ma status niedostępny do uruchomienia');
       }
       if (task.totalPallets === null) {
         throw new Error('Najpierw podaj dokładną liczbę palet');
@@ -545,6 +554,15 @@ export class FirebaseRepository implements Repository {
       merged.remainingPallets = payload.totalPallets === null ? 0 : payload.totalPallets - merged.completedPallets;
     }
 
+    if (payload.status === 'archived') {
+      merged.archived = true;
+    }
+
+    const statusValidationError = validateRequestedTaskStatus(merged, payload.status, payload.archived);
+    if (statusValidationError) {
+      throw new Error(statusValidationError);
+    }
+
     const normalized = reconcileTaskStatus(merged, payload.status);
     await putById(collections.actionTasks, normalized);
 
@@ -606,6 +624,7 @@ export class FirebaseRepository implements Repository {
       const workerSnap = await tx.get(workerRef);
       if (!workerSnap.exists()) throw new Error('Nie znaleziono pracownika');
       const worker = workerSnap.data() as User;
+      if (!worker.isActive) throw new Error('Pracownik jest dezaktywowany');
 
       const validationError = validateSessionInput(
         task,
