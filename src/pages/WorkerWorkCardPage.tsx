@@ -11,6 +11,7 @@ import { Badge } from '../components/ui/Badge';
 import { useAuth } from '../features/auth/AuthContext';
 import { detectGaps, detectOverlaps, evaluateDayClose, hasActiveWorkEntry, toDateKey, toIsoByDateAndTime } from '../entities/workday';
 import { getRepository } from '../services/repositories';
+import { seedWorkTypes } from '../services/seed/seedData';
 import { formatDate, formatDateTime, formatMinutes, toIsoNow } from '../shared/utils/date';
 import { useI18n } from '../shared/i18n/I18nContext';
 import type { AddManualWorkLogEntryPayload, CloseWorkDayPayload, StartWorkDayPayload, UpdateManualWorkLogEntryPayload } from '../services/repositories/types';
@@ -44,6 +45,11 @@ const todayDateKey = () => toDateKey(toIsoNow());
 const fiveMinutesMs = 5 * 60 * 1000;
 const isQuarterHourTime = (value: string) => /^([01]\d|2[0-3]):(00|15|30|45)$/.test(value);
 const defaultShiftMinutes = 8 * 60;
+const fallbackWorkTypes: WorkTypeDictionary[] = seedWorkTypes.map((entry) => ({
+  ...entry,
+  createdAt: '1970-01-01T00:00:00.000Z',
+  updatedAt: '1970-01-01T00:00:00.000Z'
+}));
 
 const addMinutesToDateKeyTime = (date: string, time: string, minutes: number) => {
   const base = new Date(`${date}T${time}:00`);
@@ -92,9 +98,10 @@ export const WorkerWorkCardPage = () => {
         repository.getWorkTypes(),
         repository.getWorkDayByDate(user.id, dateKey, user)
       ]);
-      setWorkTypes(types);
-      if (types.length > 0 && !manualWorkTypeId) {
-        setManualWorkTypeId(types[0].id);
+      const effectiveTypes = types.length > 0 ? types : fallbackWorkTypes.filter((entry) => entry.isActive);
+      setWorkTypes(effectiveTypes);
+      if (effectiveTypes.length > 0 && !manualWorkTypeId) {
+        setManualWorkTypeId(effectiveTypes[0].id);
       }
       setDay(dayRow);
       if (dayRow) {
@@ -118,7 +125,11 @@ export const WorkerWorkCardPage = () => {
   const overlaps = useMemo(() => detectOverlaps(entries), [entries]);
   const gaps = useMemo(() => detectGaps(entries), [entries]);
   const activeEntry = useMemo(() => entries.find((entry) => !entry.endTime) ?? null, [entries]);
-  const manualTypes = useMemo(() => workTypes.filter((entry) => entry.category !== 'system'), [workTypes]);
+  const manualTypes = useMemo(() => {
+    const activeTypes = workTypes.filter((entry) => entry.isActive);
+    const source = activeTypes.length > 0 ? activeTypes : fallbackWorkTypes.filter((entry) => entry.isActive);
+    return source.filter((entry) => entry.category !== 'system');
+  }, [workTypes]);
   const transferTypes = useMemo(
     () => workTypes.filter((entry) => entry.category === 'manual' || entry.category === 'pre_shift'),
     [workTypes]

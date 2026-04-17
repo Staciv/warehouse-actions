@@ -271,7 +271,7 @@
   }
 
   .main {
-    padding: 0 6px;
+    padding: 0 6px calc(190px + env(safe-area-inset-bottom));
   }
 
   .top {
@@ -344,7 +344,7 @@
   }
 
   .workerShell {
-    padding: 12px 14px calc(132px + env(safe-area-inset-bottom));
+    padding: 12px 14px calc(172px + env(safe-area-inset-bottom));
   }
 
   .workerTop {
@@ -363,7 +363,7 @@
   }
 
   .workerMain {
-    padding: 12px 6px 32px;
+    padding: 12px 6px 56px;
   }
 }
 
@@ -417,11 +417,11 @@
   }
 
   .workerShell {
-    padding-bottom: calc(158px + env(safe-area-inset-bottom));
+    padding-bottom: calc(198px + env(safe-area-inset-bottom));
   }
 
   .workerMain {
-    padding-bottom: 44px;
+    padding-bottom: 72px;
   }
 }
 

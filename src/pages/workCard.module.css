@@ -2,6 +2,7 @@
   display: grid;
   gap: 10px;
   min-width: 0;
+  padding-bottom: 10px;
 }
 
 .headerRow {
@@ -124,6 +125,11 @@
 }
 
 @media (max-width: 720px) {
+  .page {
+    gap: 12px;
+    padding-bottom: 22px;
+  }
+
   .headerRow {
     align-items: stretch;
   }
@@ -131,6 +137,32 @@
   .datePickerWrap {
     min-width: 100%;
     max-width: none;
+  }
+
+  .currentActivityGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .dayActionsRow {
+    align-items: stretch;
+  }
+
+  .dayActionsRow > * {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .closeTimeField,
+  .exitField,
+  .exitCommentField {
+    min-width: 100%;
+    max-width: none;
+  }
+
+  .intervalRow {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .typeRow {
