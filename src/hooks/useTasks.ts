@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getRepository } from '../services/repositories';
 import type { ActionTask, ActionTaskFilters } from '../types/domain';
+import { subscribeDataSync } from '../shared/utils/dataSync';
 
 export const useTasks = (initialFilters?: ActionTaskFilters) => {
   const [tasks, setTasks] = useState<ActionTask[]>([]);
@@ -30,6 +31,12 @@ export const useTasks = (initialFilters?: ActionTaskFilters) => {
   useEffect(() => {
     void load(initialFiltersRef.current);
   }, [filtersKey, load]);
+
+  useEffect(() => {
+    return subscribeDataSync(['tasks', 'sessions'], () => {
+      void load(initialFiltersRef.current);
+    });
+  }, [load]);
 
   return { tasks, loading, error, reload: load, setTasks };
 };

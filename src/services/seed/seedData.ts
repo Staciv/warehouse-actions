@@ -1,4 +1,4 @@
-import type { ActionTask, ActionType, Carrier, User, WorkSession } from '../../types/domain';
+import type { ActionTask, ActionType, Carrier, ProblemReport, User, WorkDay, WorkLogEntry, WorkSession, WorkTypeDictionary } from '../../types/domain';
 
 export interface SeedUser extends Omit<User, 'passwordHash' | 'createdAt' | 'updatedAt'> {
   plainPassword: string;
@@ -253,5 +253,96 @@ export const seedWorkSessions: Omit<WorkSession, 'createdAt' | 'updatedAt'>[] = 
     palletsCompletedInSession: 24,
     durationMinutes: 100,
     comment: 'Komplety złożone'
+  }
+];
+
+export const seedProblemReports: Omit<ProblemReport, 'createdAt' | 'updatedAt'>[] = [
+  {
+    id: 'pr-1',
+    actionTaskId: 'task-1',
+    vehicleCode: 'PL-WA-1201',
+    issueType: 'missing_label',
+    rampNumber: 'R-05',
+    shortDescription: 'Paleta bez etykiety, brak numeru referencyjnego.',
+    message:
+      'Problem: Paleta bez etykiety\nMaszyna: PL-WA-1201\nRampa: R-05\nCzas: 2026-03-13 09:10\nZgłosił: Paweł Iwanow',
+    status: 'new',
+    createdByUserId: 'u-worker-1',
+    createdByUserName: 'Paweł Iwanow',
+    createdByUserRole: 'worker',
+    updatedByUserId: 'u-worker-1',
+    updatedByUserName: 'Paweł Iwanow'
+  }
+];
+
+export const seedWorkTypes: Omit<WorkTypeDictionary, 'createdAt' | 'updatedAt'>[] = [
+  { id: 'wt-przyjecia', name: 'Przyjęcia', category: 'manual', isActive: true },
+  { id: 'wt-preparacja', name: 'Preparacja', category: 'manual', isActive: true },
+  { id: 'wt-retrak', name: 'Retrak', category: 'manual', isActive: true },
+  { id: 'wt-ks', name: 'Kontrola stoku (K-S)', category: 'manual', isActive: true },
+  { id: 'wt-cleaning', name: 'Sprzątanie', category: 'manual', isActive: true },
+  { id: 'wt-help', name: 'Pomoc / inne zadanie', category: 'manual', isActive: true },
+  { id: 'wt-other', name: 'Inna praca', category: 'manual', isActive: true },
+  { id: 'wt-euro', name: 'EURO', category: 'manual', isActive: true },
+  { id: 'wt-box-palet', name: 'BOX / PALET', category: 'manual', isActive: true },
+  { id: 'wt-slip-manual', name: 'SLIP', category: 'manual', isActive: true },
+  { id: 'wt-putaway', name: 'Wstawianie palet', category: 'manual', isActive: true },
+  { id: 'wt-wata', name: 'Wata', category: 'manual', isActive: true },
+  { id: 'wt-unload', name: 'Rozładunek auta', category: 'pre_shift', isActive: true },
+  { id: 'wt-container', name: 'Kontener', category: 'pre_shift', isActive: true },
+  { id: 'wt-break', name: 'Przerwa', category: 'gap_fill', isActive: true },
+  { id: 'wt-waiting', name: 'Oczekiwanie pracy', category: 'gap_fill', isActive: true },
+  { id: 'wt-action', name: 'Akcja magazynowa', category: 'system', isActive: true }
+];
+
+export const seedWorkDays: Omit<WorkDay, 'createdAt' | 'updatedAt'>[] = [
+  {
+    id: 'wd-u-worker-1-2026-03-13',
+    workerId: 'u-worker-1',
+    workerName: 'Paweł Iwanow',
+    date: '2026-03-13',
+    actualStart: '2026-03-13T06:00:00.000Z',
+    plannedEnd: '2026-03-13T14:00:00.000Z',
+    status: 'active',
+    totalPresenceMinutes: 0,
+    totalWorkedMinutes: 0,
+    totalGapMinutes: 0
+  }
+];
+
+export const seedWorkLogEntries: Omit<WorkLogEntry, 'createdAt' | 'updatedAt'>[] = [
+  {
+    id: 'wle-1',
+    workDayId: 'wd-u-worker-1-2026-03-13',
+    workerId: 'u-worker-1',
+    workerName: 'Paweł Iwanow',
+    source: 'manual',
+    workTypeId: 'wt-preparacja',
+    workTypeName: 'Preparacja',
+    startTime: '2026-03-13T06:00:00.000Z',
+    endTime: '2026-03-13T07:00:00.000Z',
+    durationMinutes: 60,
+    comment: 'Przygotowanie strefy',
+    isAutoClosed: false
+  },
+  {
+    id: 'wle-2',
+    workDayId: 'wd-u-worker-1-2026-03-13',
+    workerId: 'u-worker-1',
+    workerName: 'Paweł Iwanow',
+    source: 'action',
+    workTypeId: 'wt-action',
+    workTypeName: 'Akcja magazynowa',
+    relatedActionId: 'task-1',
+    relatedActionType: 'Slip-sheet / łapami na europaletę',
+    relatedCarrierId: 'c-1',
+    relatedCarrierName: 'Baltic Freight',
+    relatedVehicleCode: 'PL-WA-1201',
+    startTime: '2026-03-13T08:45:00.000Z',
+    endTime: '2026-03-13T10:15:00.000Z',
+    durationMinutes: 90,
+    palletsCompleted: 30,
+    comment: 'Auto z sesji akcji',
+    isAutoClosed: false
   }
 ];

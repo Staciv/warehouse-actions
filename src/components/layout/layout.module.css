@@ -1,8 +1,10 @@
 .app {
   display: grid;
   min-height: 100vh;
-  grid-template-columns: 280px 1fr;
-  gap: 18px;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr auto;
+  align-content: start;
+  gap: 12px;
   padding: 16px;
 }
 
@@ -16,17 +18,60 @@
   box-shadow: var(--gx-shadow-md);
 }
 
+.desktopHeader {
+  border: 1px solid var(--gx-border);
+  background: linear-gradient(165deg, rgba(20, 42, 72, 0.72), rgba(10, 24, 46, 0.62));
+  color: var(--gx-text-main);
+  padding: 12px 14px;
+  border-radius: 24px;
+  backdrop-filter: var(--gx-blur);
+  box-shadow: var(--gx-shadow-md);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 10px;
+  z-index: 20;
+}
+
+.desktopBrand {
+  min-width: 170px;
+}
+
 .brand {
   font-weight: 700;
-  margin-bottom: 16px;
+  margin-bottom: 2px;
   letter-spacing: 0.02em;
   font-size: 15px;
   color: #f2f8ff;
 }
 
+.brandLink {
+  display: inline-flex;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 10px;
+}
+
+.brandLink:hover .brand,
+.brandLink:focus-visible .brand {
+  color: #ffffff;
+  text-shadow: 0 0 18px rgba(114, 185, 255, 0.28);
+}
+
 .nav {
   display: grid;
   gap: 8px;
+}
+
+.desktopNav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .nav a {
@@ -47,8 +92,33 @@
   transform: translateX(1px);
 }
 
+.desktopNavLink,
+.desktopNavActive {
+  color: var(--gx-text-muted);
+  text-decoration: none;
+  padding: 8px 11px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: background var(--gx-transition), border-color var(--gx-transition), color var(--gx-transition), box-shadow var(--gx-transition);
+}
+
+.desktopNavLink:hover,
+.desktopNavActive {
+  background: rgba(85, 154, 231, 0.16);
+  border-color: rgba(145, 196, 255, 0.33);
+  color: #eff7ff;
+}
+
+.desktopNavActive {
+  background: linear-gradient(180deg, rgba(86, 155, 230, 0.2), rgba(70, 130, 214, 0.12));
+  border-color: rgba(156, 208, 255, 0.42);
+  color: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(203, 230, 255, 0.18), 0 0 0 1px rgba(86, 155, 230, 0.06);
+}
+
 .main {
-  padding: 4px 4px 18px;
+  padding: 2px 4px 18px;
 }
 
 .top {
@@ -130,6 +200,13 @@
   border-color: rgba(166, 210, 255, 0.3);
 }
 
+.workerLinkActive {
+  background: linear-gradient(180deg, rgba(86, 155, 230, 0.22), rgba(70, 130, 214, 0.14));
+  border-color: rgba(166, 210, 255, 0.4);
+  color: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(203, 230, 255, 0.16), 0 0 0 1px rgba(86, 155, 230, 0.08);
+}
+
 .workerMain {
   padding: 14px 4px 20px;
 }
@@ -184,17 +261,17 @@
 
 @media (max-width: 1100px) {
   .app {
-    grid-template-columns: 1fr;
     gap: 12px;
     padding: 14px 14px calc(20px + env(safe-area-inset-bottom));
   }
 
-  .sidebar {
+  .sidebar,
+  .desktopHeader {
     display: none;
   }
 
   .main {
-    padding: 0 6px 0 0;
+    padding: 0 6px;
   }
 
   .top {
@@ -240,12 +317,12 @@
 
   .mobileBottomNavAdmin .mobileNavLink,
   .mobileBottomNavAdmin .mobileNavActive {
-    flex: 1 1 calc(25% - 8px);
+    flex: 1 1 calc(33.333% - 8px);
   }
 
   .mobileBottomNavWorker .mobileNavLink,
   .mobileBottomNavWorker .mobileNavActive {
-    flex: 1 1 calc(50% - 8px);
+    flex: 1 1 calc(33.333% - 8px);
   }
 
   .mobileBottomNavWorker {
@@ -286,7 +363,7 @@
   }
 
   .workerMain {
-    padding: 12px 6px 32px 2px;
+    padding: 12px 6px 32px;
   }
 }
 
@@ -330,7 +407,7 @@
 
   .mobileBottomNavAdmin .mobileNavLink,
   .mobileBottomNavAdmin .mobileNavActive {
-    flex-basis: calc(25% - 6px);
+    flex-basis: calc(33.333% - 6px);
     font-size: 12px;
     padding: 9px 6px;
   }

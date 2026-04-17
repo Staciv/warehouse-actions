@@ -2,20 +2,25 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
+import { Field } from '../components/ui/Field';
+import { Input } from '../components/ui/Input';
 import { EmptyState, Loader } from '../components/ui/States';
 import { formatDateTime, formatMinutes } from '../shared/utils/date';
 import { getRepository } from '../services/repositories';
 import type { UpdateActionTaskPayload } from '../services/repositories/types';
-import type { ActionTask, AuditLog, WorkSession } from '../types/domain';
+import type { ActionTask, AuditLog, ProblemIssueType, ProblemReport, WorkSession } from '../types/domain';
 import styles from './page.module.css';
 import { useAuth } from '../features/auth/AuthContext';
 import { isAdminRole } from '../features/auth/guards';
+import { PROBLEM_ISSUE_LABELS, PROBLEM_STATUS_LABELS } from '../constants/problem-reports';
 import { ActionTaskForm } from '../features/actions/ActionTaskForm';
 import { useReferenceData } from '../hooks/useReferenceData';
 import { PriorityBadge, StatusBadge } from '../features/actions/badges';
 import { WorkSessionForm } from '../features/work/WorkSessionForm';
 import { Table } from '../components/ui/Table';
 import { ActionProgressBar } from '../features/live-ops/ActionProgressBar';
+import { Select } from '../components/ui/Select';
+import { TextArea } from '../components/ui/TextArea';
 
 export const ActionDetailsPage = () => {
   const { id } = useParams();
@@ -25,11 +30,19 @@ export const ActionDetailsPage = () => {
 
   const [task, setTask] = useState<ActionTask | null>(null);
   const [sessions, setSessions] = useState<WorkSession[]>([]);
+  const [problemReports, setProblemReports] = useState<ProblemReport[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [workerEnteredAt, setWorkerEnteredAt] = useState<string | null>(null);
+  const [showProblemForm, setShowProblemForm] = useState(false);
+  const [problemIssueType, setProblemIssueType] = useState<ProblemIssueType>('missing_label');
+  const [problemRamp, setProblemRamp] = useState('');
+  const [problemDescription, setProblemDescription] = useState('');
+  const [problemPhotoUrl, setProblemPhotoUrl] = useState('');
+  const [problemError, setProblemError] = useState('');
+  const [savingProblem, setSavingProblem] = useState(false);
 
   const canManage = user ? isAdminRole(user.role) : false;
   const isWorkerParticipant = task && user ? task.participantWorkerIds.includes(user.id) : false;
@@ -41,13 +54,15 @@ export const ActionDetailsPage = () => {
     setError('');
     try {
       const repository = getRepository();
-      const [taskRow, sessionsRows, auditRows] = await Promise.all([
+      const [taskRow, sessionsRows, problemRows, auditRows] = await Promise.all([
         repository.getActionTaskById(id),
         repository.getWorkSessionsByTask(id),
+        user ? repository.getProblemReports({ actionTaskId: id }, user) : Promise.resolve([]),
         canManage && user ? repository.getAuditLogs('actionTask', id, user) : Promise.resolve([])
       ]);
       setTask(taskRow);
       setSessions(sessionsRows);
+      setProblemReports(problemRows);
       setAuditLogs(auditRows);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Błąd ładowania');
@@ -58,7 +73,7 @@ export const ActionDetailsPage = () => {
 
   useEffect(() => {
     void load();
-  }, [id, canManage]);
+  }, [id, canManage, user?.id]);
 
   const totalDuration = useMemo(
     () => sessions.reduce((sum, session) => sum + session.durationMinutes, 0),
@@ -141,6 +156,34 @@ export const ActionDetailsPage = () => {
     if (!confirmed) return;
     await getRepository().updateActionTask(task.id, { archived: true, status: 'archived' }, user);
     navigate('/actions');
+  };
+
+  const submitProblemReport = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!user || !task) return;
+    setProblemError('');
+    setSavingProblem(true);
+    try {
+      await getRepository().createProblemReport(
+        {
+          actionTaskId: task.id,
+          issueType: problemIssueType,
+          rampNumber: problemRamp,
+          shortDescription: problemDescription,
+          photoUrl: problemPhotoUrl || undefined
+        },
+        user
+      );
+      setShowProblemForm(false);
+      setProblemRamp('');
+      setProblemDescription('');
+      setProblemPhotoUrl('');
+      await load();
+    } catch (err) {
+      setProblemError(err instanceof Error ? err.message : 'Nie udało się wysłać zgłoszenia');
+    } finally {
+      setSavingProblem(false);
+    }
   };
 
   return (
@@ -235,6 +278,49 @@ export const ActionDetailsPage = () => {
         <WorkSessionForm task={task} fixedStartedAt={workerEnteredAt ?? new Date().toISOString()} onSubmit={saveWorkSession} />
       ) : null}
 
+      {user.role === 'worker' ? (
+        <Card>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <h3>Zgłoszenia problemów</h3>
+            <Button variant="secondary" onClick={() => setShowProblemForm((value) => !value)}>
+              {showProblemForm ? 'Ukryj formularz' : 'Zgłoś problem'}
+            </Button>
+          </div>
+
+          {showProblemForm ? (
+            <form className="stack" onSubmit={submitProblemReport}>
+              <div className="formGrid">
+                <Field label="Typ problemu">
+                  <Select value={problemIssueType} onChange={(event) => setProblemIssueType(event.target.value as ProblemIssueType)}>
+                    {Object.entries(PROBLEM_ISSUE_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Rampa">
+                  <Input value={problemRamp} onChange={(event) => setProblemRamp(event.target.value)} placeholder="np. R-05" required />
+                </Field>
+                <Field label="Maszyna">
+                  <Input value={task.vehicleCode} disabled />
+                </Field>
+                <Field label="Zdjęcie (URL, opcjonalnie)">
+                  <Input value={problemPhotoUrl} onChange={(event) => setProblemPhotoUrl(event.target.value)} />
+                </Field>
+              </div>
+              <Field label="Krótki opis">
+                <TextArea rows={3} value={problemDescription} onChange={(event) => setProblemDescription(event.target.value)} required />
+              </Field>
+              {problemError ? <div style={{ color: '#c63d3d' }}>{problemError}</div> : null}
+              <Button type="submit" disabled={savingProblem}>
+                {savingProblem ? 'Wysyłanie...' : 'Wyślij zgłoszenie'}
+              </Button>
+            </form>
+          ) : null}
+        </Card>
+      ) : null}
+
       <Card>
         <h3 style={{ marginBottom: 8 }}>Historia wykonania</h3>
         {sessions.length === 0 ? (
@@ -262,6 +348,38 @@ export const ActionDetailsPage = () => {
                   <td data-label="Palety">{session.palletsCompletedInSession}</td>
                   <td data-label="Czas trwania">{formatMinutes(session.durationMinutes)}</td>
                   <td data-label="Komentarz">{session.comment || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </Card>
+
+      <Card>
+        <h3 style={{ marginBottom: 8 }}>Zgłoszenia problemów</h3>
+        {problemReports.length === 0 ? (
+          <EmptyState text="Brak zgłoszeń dla tej akcji" />
+        ) : (
+          <Table>
+            <thead>
+              <tr>
+                <th>Czas</th>
+                <th>Typ problemu</th>
+                <th>Rampa</th>
+                <th>Status</th>
+                <th>Zgłosił</th>
+                <th>Opis</th>
+              </tr>
+            </thead>
+            <tbody>
+              {problemReports.map((report) => (
+                <tr key={report.id}>
+                  <td data-label="Czas">{formatDateTime(report.createdAt)}</td>
+                  <td data-label="Typ problemu">{PROBLEM_ISSUE_LABELS[report.issueType]}</td>
+                  <td data-label="Rampa">{report.rampNumber}</td>
+                  <td data-label="Status">{PROBLEM_STATUS_LABELS[report.status]}</td>
+                  <td data-label="Zgłosił">{report.createdByUserName}</td>
+                  <td data-label="Opis">{report.shortDescription}</td>
                 </tr>
               ))}
             </tbody>

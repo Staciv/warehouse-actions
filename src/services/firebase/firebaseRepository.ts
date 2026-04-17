@@ -12,7 +12,19 @@ import {
   where
 } from 'firebase/firestore';
 import { normalizeTaskAfterProgress, reconcileTaskStatus, validateRequestedTaskStatus } from '../../entities/action-task';
+import { validateProblemReportInput } from '../../entities/problem-report';
+import {
+  calculateMinutes,
+  detectOverlaps,
+  ensureEndAfterStart,
+  evaluateDayClose,
+  sortWorkEntries,
+  summarizeWorkDay,
+  toDateKey,
+  validateEntryInWorkDayBounds
+} from '../../entities/workday';
 import { calculateDurationMinutes, validateSessionInput } from '../../entities/work-session';
+import { emitDataSync } from '../../shared/utils/dataSync';
 import { toIsoNow } from '../../shared/utils/date';
 import { sha256 } from '../../shared/utils/hash';
 import { createId } from '../../shared/utils/id';
@@ -22,10 +34,24 @@ import type {
   ActionType,
   AuditLog,
   Carrier,
+  ProblemReport,
   User,
+  WorkDay,
+  WorkLogEntry,
+  WorkTypeDictionary,
   WorkSession
 } from '../../types/domain';
-import { seedActionTasks, seedActionTypes, seedCarriers, seedUsers, seedWorkSessions } from '../seed/seedData';
+import {
+  seedActionTasks,
+  seedActionTypes,
+  seedCarriers,
+  seedProblemReports,
+  seedUsers,
+  seedWorkDays,
+  seedWorkLogEntries,
+  seedWorkSessions,
+  seedWorkTypes
+} from '../seed/seedData';
 import {
   applyTaskFilters,
   normalizeTaskRow,
@@ -34,17 +60,26 @@ import {
 } from '../repositories/helpers';
 import {
   assertAdmin,
+  assertCanCreateProblemReport,
+  assertCanManageProblemReport,
   assertCanManageUserRole,
+  assertCanAccessWorkerData,
   assertCanRecordWorkSession,
   assertTaskAcceptsWorkSession
 } from '../repositories/permissions';
 import type {
+  AddManualWorkLogEntryPayload,
   CreateActionTaskPayload,
+  CreateProblemReportPayload,
   CreateUserPayload,
   CreateWorkSessionPayload,
+  ProblemReportFilters,
   Repository,
+  StartWorkDayPayload,
   UpdateActionTaskPayload,
-  UpdateUserPayload
+  UpdateManualWorkLogEntryPayload,
+  UpdateUserPayload,
+  WorkDaysFilters
 } from '../repositories/types';
 import { collections } from './collectionNames';
 import { getDb } from './client';
@@ -62,6 +97,20 @@ const readById = async <T>(name: string, id: string): Promise<T | null> => {
 
 const putById = async <T extends { id: string }>(name: string, row: T) => {
   await setDoc(doc(getDb(), name, row.id), row, { merge: false });
+};
+
+const ensureDefaultWorkTypes = async () => {
+  const existing = await readCollection<WorkTypeDictionary>(collections.workTypes);
+  const existingIds = new Set(existing.map((entry) => entry.id));
+  const missing = seedWorkTypes.filter((entry) => !existingIds.has(entry.id));
+
+  if (missing.length === 0) return existing;
+
+  const seededMissing = missing.map((item) => withTimestamps(item));
+  for (const entry of seededMissing) {
+    await putById(collections.workTypes, entry);
+  }
+  return [...existing, ...seededMissing];
 };
 
 const redactAuditValue = (value: unknown): unknown => {
@@ -106,6 +155,24 @@ const pushAudit = async (
   await addDoc(collection(getDb(), collections.auditLogs), payload);
 };
 
+const getWorkDayByWorkerAndDate = async (workerId: string, dateKey: string) => {
+  const snap = await getDocs(
+    query(
+      collection(getDb(), collections.workDays),
+      where('workerId', '==', workerId),
+      where('date', '==', dateKey),
+      limit(1)
+    )
+  );
+  if (snap.empty) return null;
+  return snap.docs[0].data() as WorkDay;
+};
+
+const getWorkLogEntriesByDay = async (workDayId: string) => {
+  const snap = await getDocs(query(collection(getDb(), collections.workLogEntries), where('workDayId', '==', workDayId)));
+  return snap.docs.map((row) => row.data() as WorkLogEntry);
+};
+
 export class FirebaseRepository implements Repository {
   mode: 'firebase' = 'firebase';
 
@@ -145,6 +212,18 @@ export class FirebaseRepository implements Repository {
 
     for (const session of seedWorkSessions) {
       await putById(collections.workSessions, withTimestamps(session));
+    }
+    for (const day of seedWorkDays) {
+      await putById(collections.workDays, withTimestamps(day));
+    }
+    for (const logEntry of seedWorkLogEntries) {
+      await putById(collections.workLogEntries, withTimestamps(logEntry));
+    }
+    for (const workType of seedWorkTypes) {
+      await putById(collections.workTypes, withTimestamps(workType));
+    }
+    for (const report of seedProblemReports) {
+      await putById(collections.problemReports, withTimestamps(report));
     }
   }
 
@@ -363,6 +442,7 @@ export class FirebaseRepository implements Repository {
 
     await putById(collections.actionTasks, task);
     await pushAudit('actionTask', task.id, 'create', null, task, actor);
+    emitDataSync(['tasks']);
     return task;
   }
 
@@ -421,6 +501,64 @@ export class FirebaseRepository implements Repository {
 
     await pushAudit('actionTask', taskId, 'start_execution', updated.oldTask, updated.newTask, actor);
     await pushAudit('user', workerId, 'worker_status_update', updated.oldWorker, updated.newWorker, actor);
+
+    const now = toIsoNow();
+    const dateKey = toDateKey(now);
+    const existingDay = await getWorkDayByWorkerAndDate(workerId, dateKey);
+    const day =
+      existingDay ??
+      withTimestamps({
+        id: createId(),
+        workerId,
+        workerName: updated.newWorker.displayName,
+        date: dateKey,
+        actualStart: `${dateKey}T00:00:00.000Z`,
+        plannedEnd: `${dateKey}T08:00:00.000Z`,
+        status: 'active' as const,
+        totalPresenceMinutes: 0,
+        totalWorkedMinutes: 0,
+        totalGapMinutes: 0
+      });
+    if (!existingDay) {
+      await putById(collections.workDays, day);
+      await pushAudit('workDay', day.id, 'auto_create', null, day, actor);
+    }
+    const dayEntries = await getWorkLogEntriesByDay(day.id);
+    const openEntry = dayEntries
+      .filter((entry) => entry.workerId === workerId && !entry.endTime)
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
+    if (openEntry) {
+      const closed: WorkLogEntry = {
+        ...openEntry,
+        endTime: now,
+        durationMinutes: calculateMinutes(openEntry.startTime, now),
+        isAutoClosed: true,
+        updatedAt: toIsoNow()
+      };
+      await putById(collections.workLogEntries, closed);
+    }
+    const actionEntry: WorkLogEntry = withTimestamps({
+      id: createId(),
+      workDayId: day.id,
+      workerId,
+      workerName: updated.newWorker.displayName,
+      source: 'action' as const,
+      workTypeId: 'wt-action',
+      workTypeName: 'Akcja magazynowa',
+      relatedActionId: updated.newTask.id,
+      relatedActionType: updated.newTask.actionTypeName,
+      relatedCarrierId: updated.newTask.carrierId,
+      relatedCarrierName: updated.newTask.carrierName,
+      relatedVehicleCode: updated.newTask.vehicleCode,
+      startTime: now,
+      endTime: undefined,
+      durationMinutes: 0,
+      palletsCompleted: 0,
+      comment: 'Auto-start z rozpoczęcia akcji',
+      isAutoClosed: false
+    });
+    await putById(collections.workLogEntries, actionEntry);
+    emitDataSync(['tasks', 'sessions', 'users', 'workdays']);
     return updated.newTask;
   }
 
@@ -503,6 +641,30 @@ export class FirebaseRepository implements Repository {
     }
 
     await pushAudit('actionTask', taskId, 'stop_execution', updated.oldTask, updated.newTask, actor);
+
+    const actionEntriesSnap = await getDocs(
+      query(
+        collection(getDb(), collections.workLogEntries),
+        where('workerId', '==', workerId),
+        where('relatedActionId', '==', taskId)
+      )
+    );
+    const openActionEntry = actionEntriesSnap.docs
+      .map((row) => row.data() as WorkLogEntry)
+      .filter((entry) => !entry.endTime)
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
+    if (openActionEntry) {
+      const now = toIsoNow();
+      const closed: WorkLogEntry = {
+        ...openActionEntry,
+        endTime: now,
+        durationMinutes: calculateMinutes(openActionEntry.startTime, now),
+        isAutoClosed: true,
+        updatedAt: now
+      };
+      await putById(collections.workLogEntries, closed);
+    }
+    emitDataSync(['tasks', 'users', 'workdays']);
     return updated.newTask;
   }
 
@@ -581,6 +743,7 @@ export class FirebaseRepository implements Repository {
     }
 
     await pushAudit('actionTask', id, 'update', existing, normalized, actor);
+    emitDataSync(['tasks', 'users']);
     return normalized;
   }
 
@@ -691,7 +854,360 @@ export class FirebaseRepository implements Repository {
       }
     }
 
+    const dateKey = toDateKey(payload.startedAt);
+    const existingDay = await getWorkDayByWorkerAndDate(payload.workerId, dateKey);
+    const day =
+      existingDay ??
+      withTimestamps({
+        id: createId(),
+        workerId: payload.workerId,
+        workerName: createdSession.session.workerName,
+        date: dateKey,
+        actualStart: `${dateKey}T00:00:00.000Z`,
+        plannedEnd: `${dateKey}T08:00:00.000Z`,
+        status: 'active' as const,
+        totalPresenceMinutes: 0,
+        totalWorkedMinutes: 0,
+        totalGapMinutes: 0
+      });
+    if (!existingDay) {
+      await putById(collections.workDays, day);
+      await pushAudit('workDay', day.id, 'auto_create', null, day, actor);
+    }
+
+    const dayEntries = await getWorkLogEntriesByDay(day.id);
+    const openActionEntry = dayEntries
+      .filter((entry) => entry.relatedActionId === payload.actionTaskId && !entry.endTime)
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
+    if (openActionEntry) {
+      const updatedEntry: WorkLogEntry = {
+        ...openActionEntry,
+        startTime: payload.startedAt,
+        endTime: payload.endedAt,
+        durationMinutes: calculateMinutes(payload.startedAt, payload.endedAt),
+        palletsCompleted: (openActionEntry.palletsCompleted ?? 0) + payload.palletsCompletedInSession,
+        updatedAt: toIsoNow()
+      };
+      await putById(collections.workLogEntries, updatedEntry);
+    } else {
+      const entry: WorkLogEntry = withTimestamps({
+        id: createId(),
+        workDayId: day.id,
+        workerId: payload.workerId,
+        workerName: createdSession.session.workerName,
+        source: 'action' as const,
+        workTypeId: 'wt-action',
+        workTypeName: 'Akcja magazynowa',
+        relatedActionId: createdSession.newTask.id,
+        relatedActionType: createdSession.newTask.actionTypeName,
+        relatedCarrierId: createdSession.newTask.carrierId,
+        relatedCarrierName: createdSession.newTask.carrierName,
+        relatedVehicleCode: createdSession.newTask.vehicleCode,
+        startTime: payload.startedAt,
+        endTime: payload.endedAt,
+        durationMinutes: calculateMinutes(payload.startedAt, payload.endedAt),
+        palletsCompleted: payload.palletsCompletedInSession,
+        comment: payload.comment,
+        isAutoClosed: false
+      });
+      await putById(collections.workLogEntries, entry);
+    }
+
+    emitDataSync(['tasks', 'sessions', 'users', 'workdays']);
     return createdSession.session;
+  }
+
+  async createProblemReport(payload: CreateProblemReportPayload, actor: User) {
+    assertCanCreateProblemReport(actor);
+    let vehicleCode = payload.vehicleCode?.trim() ?? '';
+    if (payload.actionTaskId) {
+      const task = await readById<ActionTask>(collections.actionTasks, payload.actionTaskId);
+      if (!task) throw new Error('Nie znaleziono akcji do zgłoszenia problemu');
+      vehicleCode = task.vehicleCode;
+    }
+    const validationError = validateProblemReportInput(payload.issueType, payload.rampNumber, payload.shortDescription, vehicleCode);
+    if (validationError) throw new Error(validationError);
+
+    const now = toIsoNow();
+    const report: ProblemReport = withTimestamps({
+      id: createId(),
+      actionTaskId: payload.actionTaskId,
+      vehicleCode,
+      issueType: payload.issueType,
+      rampNumber: payload.rampNumber.trim(),
+      shortDescription: payload.shortDescription.trim(),
+      photoUrl: payload.photoUrl?.trim() || undefined,
+      message: `Problem: ${payload.issueType}\nMaszyna: ${vehicleCode}\nRampa: ${payload.rampNumber}\nCzas: ${now}\nZgłosił: ${actor.displayName}`,
+      status: 'new' as const,
+      createdByUserId: actor.id,
+      createdByUserName: actor.displayName,
+      createdByUserRole: actor.role,
+      updatedByUserId: actor.id,
+      updatedByUserName: actor.displayName
+    });
+
+    await putById(collections.problemReports, report);
+    await pushAudit('problemReport', report.id, 'create', null, report, actor);
+    emitDataSync(['problems']);
+    return report;
+  }
+
+  async getProblemReports(filters: ProblemReportFilters | undefined, actor: User) {
+    const isAdmin = actor.role === 'admin' || actor.role === 'superadmin';
+    const constraints = [] as Array<ReturnType<typeof where>>;
+    if (!isAdmin) constraints.push(where('createdByUserId', '==', actor.id));
+    if (filters?.actionTaskId) constraints.push(where('actionTaskId', '==', filters.actionTaskId));
+    if (filters?.status && filters.status !== 'all') constraints.push(where('status', '==', filters.status));
+    if (filters?.issueType && filters.issueType !== 'all') constraints.push(where('issueType', '==', filters.issueType));
+
+    const snap = await getDocs(query(collection(getDb(), collections.problemReports), ...constraints));
+    const rows = snap.docs.map((row) => row.data() as ProblemReport);
+    return rows
+      .filter((item) =>
+        filters?.rampNumber ? item.rampNumber.toLowerCase().includes(filters.rampNumber.toLowerCase()) : true
+      )
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async updateProblemReportStatus(id: string, status: ProblemReport['status'], actor: User) {
+    assertCanManageProblemReport(actor);
+    const existing = await readById<ProblemReport>(collections.problemReports, id);
+    if (!existing) throw new Error('Nie znaleziono zgłoszenia');
+
+    const next: ProblemReport = {
+      ...existing,
+      status,
+      updatedByUserId: actor.id,
+      updatedByUserName: actor.displayName,
+      updatedAt: toIsoNow(),
+      resolvedAt: status === 'resolved' ? toIsoNow() : existing.resolvedAt
+    };
+    await putById(collections.problemReports, next);
+    await pushAudit('problemReport', id, 'status_update', existing, next, actor);
+    emitDataSync(['problems']);
+    return next;
+  }
+
+  async getWorkTypes() {
+    const rows = await ensureDefaultWorkTypes();
+    return rows.filter((entry) => entry.isActive).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+  }
+
+  async upsertWorkType(workType: Omit<WorkTypeDictionary, 'createdAt' | 'updatedAt'>, actor: User) {
+    assertAdmin(actor);
+    const existing = await readById<WorkTypeDictionary>(collections.workTypes, workType.id);
+    if (existing) {
+      const next: WorkTypeDictionary = {
+        ...existing,
+        name: workType.name,
+        category: workType.category,
+        isActive: workType.isActive,
+        updatedAt: toIsoNow()
+      };
+      await putById(collections.workTypes, next);
+      await pushAudit('workType', next.id, 'update', existing, next, actor);
+      return next;
+    }
+
+    const next = withTimestamps(workType);
+    await putById(collections.workTypes, next);
+    await pushAudit('workType', next.id, 'create', null, next, actor);
+    return next;
+  }
+
+  async getWorkDayByDate(workerId: string, date: string, actor: User) {
+    assertCanAccessWorkerData(actor, workerId);
+    return getWorkDayByWorkerAndDate(workerId, date);
+  }
+
+  async getWorkDays(filters: WorkDaysFilters | undefined, actor: User) {
+    const constraints = [] as Array<ReturnType<typeof where>>;
+    if (actor.role === 'worker') constraints.push(where('workerId', '==', actor.id));
+    if (filters?.workerId && actor.role !== 'worker') constraints.push(where('workerId', '==', filters.workerId));
+    if (filters?.date) constraints.push(where('date', '==', filters.date));
+    if (filters?.status && filters.status !== 'all') constraints.push(where('status', '==', filters.status));
+    const snap = await getDocs(query(collection(getDb(), collections.workDays), ...constraints));
+    const rows = snap.docs.map((row) => row.data() as WorkDay);
+    return rows.sort((a, b) => (b.date + b.updatedAt).localeCompare(a.date + a.updatedAt));
+  }
+
+  async startWorkDay(payload: StartWorkDayPayload, actor: User) {
+    assertCanAccessWorkerData(actor, payload.workerId);
+    const worker = await readById<User>(collections.users, payload.workerId);
+    if (!worker) throw new Error('Nie znaleziono pracownika');
+    const existing = await getWorkDayByWorkerAndDate(payload.workerId, payload.date);
+    if (existing?.status === 'active') return existing;
+    if (ensureEndAfterStart(payload.actualStart, payload.plannedEnd)) {
+      throw new Error('Planowane zakończenie musi być późniejsze niż start pracy.');
+    }
+
+    const workTypes = await this.getWorkTypes();
+    const draftDay: Pick<WorkDay, 'actualStart' | 'actualEnd' | 'date'> = {
+      actualStart: payload.actualStart,
+      actualEnd: undefined,
+      date: payload.date
+    };
+
+    const intervals: WorkLogEntry[] = payload.preShiftIntervals.map((item) => {
+      const type = workTypes.find((entry) => entry.id === item.workTypeId);
+      if (!type) throw new Error('Nie znaleziono typu pracy');
+      const validationError = ensureEndAfterStart(item.startTime, item.endTime);
+      if (validationError) throw new Error(validationError);
+      const dayBoundError = validateEntryInWorkDayBounds(draftDay, item.startTime, item.endTime);
+      if (dayBoundError) throw new Error(dayBoundError);
+      return withTimestamps({
+        id: createId(),
+        workDayId: '',
+        workerId: worker.id,
+        workerName: worker.displayName,
+        source: 'manual' as const,
+        workTypeId: type.id,
+        workTypeName: type.name,
+        startTime: item.startTime,
+        endTime: item.endTime,
+        durationMinutes: calculateMinutes(item.startTime, item.endTime),
+        comment: item.comment,
+        isAutoClosed: false
+      });
+    });
+    if (detectOverlaps(intervals).length > 0) throw new Error('Wykryto nakładające się interwały.');
+
+    const day: WorkDay = withTimestamps({
+      id: createId(),
+      workerId: worker.id,
+      workerName: worker.displayName,
+      date: payload.date,
+      actualStart: payload.actualStart,
+      plannedEnd: payload.plannedEnd,
+      status: 'active' as const,
+      totalPresenceMinutes: 0,
+      totalWorkedMinutes: 0,
+      totalGapMinutes: 0
+    });
+
+    await putById(collections.workDays, day);
+    for (const interval of intervals) {
+      const entry: WorkLogEntry = { ...interval, workDayId: day.id };
+      await putById(collections.workLogEntries, entry);
+    }
+    await pushAudit('workDay', day.id, 'start_day', null, day, actor);
+    return day;
+  }
+
+  async updateWorkDayPlannedEnd(workDayId: string, plannedEnd: string, actor: User) {
+    const day = await readById<WorkDay>(collections.workDays, workDayId);
+    if (!day) throw new Error('Nie znaleziono karty pracy');
+    assertCanAccessWorkerData(actor, day.workerId);
+    if (day.status !== 'active' && actor.role === 'worker') throw new Error('Karta pracy jest zamknięta');
+    const validationError = ensureEndAfterStart(day.actualStart, plannedEnd);
+    if (validationError) throw new Error(validationError);
+    const next: WorkDay = {
+      ...day,
+      plannedEnd,
+      updatedAt: toIsoNow()
+    };
+    await putById(collections.workDays, next);
+    await pushAudit('workDay', day.id, 'update_planned_end', day, next, actor);
+    return next;
+  }
+
+  async closeWorkDay(workDayId: string, actualEnd: string, actor: User) {
+    const day = await readById<WorkDay>(collections.workDays, workDayId);
+    if (!day) throw new Error('Nie znaleziono karty pracy');
+    assertCanAccessWorkerData(actor, day.workerId);
+    const entries = await getWorkLogEntriesByDay(day.id);
+    if (entries.some((entry) => !entry.endTime)) throw new Error('Nie można zamknąć dnia: aktywność jest nadal otwarta.');
+    if (detectOverlaps(entries).length > 0) throw new Error('Nie można zamknąć dnia: wykryto nakładanie interwałów.');
+    const closeEval = evaluateDayClose(day.plannedEnd, actualEnd);
+    const next: WorkDay = {
+      ...day,
+      actualEnd,
+      countedEnd: closeEval.countedEnd,
+      status: 'closed',
+      updatedAt: toIsoNow()
+    };
+    const summary = summarizeWorkDay(next, entries);
+    next.totalWorkedMinutes = summary.totalWorkedMinutes;
+    next.totalGapMinutes = summary.totalGapMinutes;
+    next.totalPresenceMinutes = summary.totalPresenceMinutes;
+    await putById(collections.workDays, next);
+    await pushAudit('workDay', day.id, 'close_day', day, next, actor);
+    return next;
+  }
+
+  async getWorkLogEntries(workDayId: string, actor: User) {
+    const day = await readById<WorkDay>(collections.workDays, workDayId);
+    if (!day) throw new Error('Nie znaleziono karty pracy');
+    assertCanAccessWorkerData(actor, day.workerId);
+    const entries = await getWorkLogEntriesByDay(workDayId);
+    return sortWorkEntries(entries);
+  }
+
+  async addManualWorkLogEntry(payload: AddManualWorkLogEntryPayload, actor: User) {
+    const day = await readById<WorkDay>(collections.workDays, payload.workDayId);
+    if (!day) throw new Error('Nie znaleziono karty pracy');
+    assertCanAccessWorkerData(actor, day.workerId);
+    if (day.status !== 'active' && actor.role === 'worker') throw new Error('Karta pracy jest zamknięta');
+    if (payload.workerId !== day.workerId) throw new Error('Niepoprawny pracownik');
+    const validationError = ensureEndAfterStart(payload.startTime, payload.endTime);
+    if (validationError) throw new Error(validationError);
+    const workType = await readById<WorkTypeDictionary>(collections.workTypes, payload.workTypeId);
+    if (!workType) throw new Error('Nie znaleziono typu pracy');
+    const dayBoundError = validateEntryInWorkDayBounds(day, payload.startTime, payload.endTime);
+    if (dayBoundError) throw new Error(dayBoundError);
+
+    const next: WorkLogEntry = withTimestamps({
+      id: createId(),
+      workDayId: day.id,
+      workerId: day.workerId,
+      workerName: day.workerName,
+      source: 'manual' as const,
+      workTypeId: workType.id,
+      workTypeName: workType.name,
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+      durationMinutes: calculateMinutes(payload.startTime, payload.endTime),
+      comment: payload.comment,
+      isAutoClosed: false
+    });
+    const existing = await getWorkLogEntriesByDay(day.id);
+    if (detectOverlaps([...existing, next]).length > 0) throw new Error('Nakładające się interwały nie są dozwolone.');
+    await putById(collections.workLogEntries, next);
+    await pushAudit('workLogEntry', next.id, 'create_manual', null, next, actor);
+    return next;
+  }
+
+  async updateManualWorkLogEntry(entryId: string, payload: UpdateManualWorkLogEntryPayload, actor: User) {
+    const entry = await readById<WorkLogEntry>(collections.workLogEntries, entryId);
+    if (!entry) throw new Error('Nie znaleziono wpisu');
+    const day = await readById<WorkDay>(collections.workDays, entry.workDayId);
+    if (!day) throw new Error('Nie znaleziono karty pracy');
+    assertCanAccessWorkerData(actor, day.workerId);
+    if (entry.source !== 'manual' && actor.role === 'worker') throw new Error('Pracownik może edytować tylko wpisy ręczne');
+    if (day.status !== 'active' && actor.role === 'worker') throw new Error('Karta pracy jest zamknięta');
+
+    let next = { ...entry };
+    if (payload.workTypeId) {
+      const workType = await readById<WorkTypeDictionary>(collections.workTypes, payload.workTypeId);
+      if (!workType) throw new Error('Nie znaleziono typu pracy');
+      next = { ...next, workTypeId: workType.id, workTypeName: workType.name };
+    }
+    if (payload.startTime) next.startTime = payload.startTime;
+    if (payload.endTime) next.endTime = payload.endTime;
+    if (payload.comment !== undefined) next.comment = payload.comment;
+    if (!next.endTime) throw new Error('Wpis ręczny musi mieć czas zakończenia');
+    const validationError = ensureEndAfterStart(next.startTime, next.endTime);
+    if (validationError) throw new Error(validationError);
+    const dayBoundError = validateEntryInWorkDayBounds(day, next.startTime, next.endTime);
+    if (dayBoundError) throw new Error(dayBoundError);
+    next.durationMinutes = calculateMinutes(next.startTime, next.endTime);
+    next.updatedAt = toIsoNow();
+    const entries = await getWorkLogEntriesByDay(day.id);
+    const merged = entries.map((item) => (item.id === next.id ? next : item));
+    if (detectOverlaps(merged).length > 0) throw new Error('Nakładające się interwały nie są dozwolone.');
+    await putById(collections.workLogEntries, next);
+    await pushAudit('workLogEntry', next.id, 'update_manual', entry, next, actor);
+    return next;
   }
 
   async getAuditLogs(entityType: AuditLog['entityType'] | undefined, entityId: string | undefined, actor: User) {

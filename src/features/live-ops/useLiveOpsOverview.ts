@@ -3,16 +3,22 @@ import { getRepository } from '../../services/repositories';
 import type { LiveAction, LiveWorker } from '../../types/live-ops';
 import type { User } from '../../types/domain';
 import { buildLiveActions, buildLiveWorkers } from './model';
+import { subscribeDataSync } from '../../shared/utils/dataSync';
 
 interface LiveOpsOverview {
   workers: LiveWorker[];
   actions: LiveAction[];
 }
 
-export const useLiveOpsOverview = (actor: User | null) => {
+interface UseLiveOpsOptions {
+  includeWorkers?: boolean;
+}
+
+export const useLiveOpsOverview = (actor: User | null, options?: UseLiveOpsOptions) => {
   const [data, setData] = useState<LiveOpsOverview>({ workers: [], actions: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const includeWorkers = options?.includeWorkers ?? true;
 
   useEffect(() => {
     let active = true;
@@ -30,13 +36,13 @@ export const useLiveOpsOverview = (actor: User | null) => {
         const sessionsFromDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const [tasks, users, sessions] = await Promise.all([
           repository.getActionTasks({ status: 'all' }),
-          actor.role === 'worker' ? Promise.resolve([]) : repository.getUsers(actor),
+          actor.role === 'worker' || !includeWorkers ? Promise.resolve([]) : repository.getUsers(actor),
           repository.getWorkSessions({ fromDate: sessionsFromDate })
         ]);
 
         if (!active) return;
         const actions = buildLiveActions(tasks, sessions);
-        const workers = buildLiveWorkers(users, actions, sessions);
+        const workers = includeWorkers ? buildLiveWorkers(users, actions, sessions) : [];
         setData({ workers, actions });
       } catch (err) {
         if (!active) return;
@@ -51,11 +57,16 @@ export const useLiveOpsOverview = (actor: User | null) => {
       void load();
     }, 15000);
 
+    const unsubscribe = subscribeDataSync(['tasks', 'sessions', 'users'], () => {
+      void load();
+    });
+
     return () => {
       active = false;
       window.clearInterval(poll);
+      unsubscribe();
     };
-  }, [actor]);
+  }, [actor, includeWorkers]);
 
   return { ...data, loading, error };
 };

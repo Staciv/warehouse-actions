@@ -15,6 +15,18 @@ export type TaskStatus =
   | 'archived';
 
 export type TaskPriority = 1 | 2 | 3 | 4;
+export type ProblemIssueType =
+  | 'missing_label'
+  | 'damaged_pallet'
+  | 'missing_documents'
+  | 'quantity_mismatch'
+  | 'ramp_busy'
+  | 'no_equipment'
+  | 'other';
+export type ProblemStatus = 'new' | 'in_progress' | 'resolved' | 'rejected';
+export type WorkDayStatus = 'active' | 'closed';
+export type WorkLogSource = 'manual' | 'action';
+export type WorkTypeCategory = 'manual' | 'pre_shift' | 'gap_fill' | 'system';
 
 export type DataMode = 'firebase' | 'mock';
 
@@ -90,7 +102,7 @@ export interface WorkSession extends BaseEntity {
 }
 
 export interface AuditLog extends BaseEntity {
-  entityType: 'user' | 'carrier' | 'actionType' | 'actionTask' | 'workSession';
+  entityType: 'user' | 'carrier' | 'actionType' | 'actionTask' | 'workSession' | 'problemReport' | 'workDay' | 'workLogEntry' | 'workType';
   entityId: string;
   action: string;
   oldValue?: string;
@@ -98,6 +110,63 @@ export interface AuditLog extends BaseEntity {
   performedByUserId: string;
   performedByUserName: string;
   performedAt: string;
+}
+
+export interface ProblemReport extends BaseEntity {
+  actionTaskId?: string;
+  vehicleCode: string;
+  issueType: ProblemIssueType;
+  rampNumber: string;
+  shortDescription: string;
+  photoUrl?: string;
+  message: string;
+  status: ProblemStatus;
+  createdByUserId: string;
+  createdByUserName: string;
+  createdByUserRole: UserRole;
+  updatedByUserId: string;
+  updatedByUserName: string;
+  resolvedAt?: string;
+}
+
+export interface WorkTypeDictionary extends BaseEntity {
+  name: string;
+  category: WorkTypeCategory;
+  isActive: boolean;
+}
+
+export interface WorkDay extends BaseEntity {
+  workerId: string;
+  workerName: string;
+  date: string;
+  actualStart: string;
+  actualEnd?: string;
+  countedEnd?: string;
+  plannedEnd: string;
+  status: WorkDayStatus;
+  totalPresenceMinutes: number;
+  totalWorkedMinutes: number;
+  totalGapMinutes: number;
+}
+
+export interface WorkLogEntry extends BaseEntity {
+  workDayId: string;
+  workerId: string;
+  workerName: string;
+  source: WorkLogSource;
+  workTypeId: string;
+  workTypeName: string;
+  relatedActionId?: string;
+  relatedActionType?: string;
+  relatedCarrierId?: string;
+  relatedCarrierName?: string;
+  relatedVehicleCode?: string;
+  startTime: string;
+  endTime?: string;
+  durationMinutes: number;
+  palletsCompleted?: number;
+  comment?: string;
+  isAutoClosed: boolean;
 }
 
 export interface AuthSession {

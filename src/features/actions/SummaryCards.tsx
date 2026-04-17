@@ -8,21 +8,25 @@ interface SummaryItem {
   to?: string;
 }
 
-export const SummaryCards = ({ items }: { items: SummaryItem[] }) => {
+export const SummaryCards = ({ items, compact = false }: { items: SummaryItem[]; compact?: boolean }) => {
+  const gridClass = compact ? `${styles.summaryGrid} ${styles.summaryGridCompact}` : styles.summaryGrid;
+  const valueClass = compact ? `${styles.summaryValue} ${styles.summaryValueCompact}` : styles.summaryValue;
+  const cardClass = compact ? `${styles.summaryLinkCard} ${styles.summaryLinkCardCompact}` : styles.summaryLinkCard;
+  const cardBodyClass = compact ? styles.cardCompact : undefined;
   return (
-    <div className={styles.summaryGrid}>
+    <div className={gridClass}>
       {items.map((item) => (
         item.to ? (
-          <Link key={item.label} to={item.to} className={styles.summaryLinkCard}>
-            <Card>
+          <Link key={item.label} to={item.to} className={cardClass}>
+            <Card className={cardBodyClass}>
               <div className="kpi">{item.label}</div>
-              <div className={styles.summaryValue}>{item.value}</div>
+              <div className={valueClass}>{item.value}</div>
             </Card>
           </Link>
         ) : (
-          <Card key={item.label}>
+          <Card key={item.label} className={cardBodyClass}>
             <div className="kpi">{item.label}</div>
-            <div className={styles.summaryValue}>{item.value}</div>
+            <div className={valueClass}>{item.value}</div>
           </Card>
         )
       ))}

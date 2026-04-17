@@ -1,0 +1,130 @@
+.page {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.datePickerWrap {
+  min-width: 220px;
+  max-width: 260px;
+}
+
+.title {
+  font-size: 21px;
+  font-weight: 700;
+  color: #f2f8ff;
+}
+
+.subtitle {
+  color: var(--gx-text-muted);
+  font-size: 13px;
+}
+
+.notice {
+  color: #d8f7ff;
+  font-size: 13px;
+}
+
+.error {
+  color: #ff9dad;
+  font-size: 13px;
+}
+
+.warning {
+  color: #ffd9a6;
+  font-size: 13px;
+}
+
+.infoBox {
+  border: 1px dashed rgba(188, 221, 255, 0.24);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(18, 39, 68, 0.32);
+  color: var(--gx-text-muted);
+  font-size: 13px;
+}
+
+.subtleNote {
+  color: var(--gx-text-dim);
+  font-size: 13px;
+}
+
+.activeTitle {
+  font-size: 13px;
+  color: var(--gx-text-muted);
+  margin-bottom: 4px;
+}
+
+.currentActivityGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.dayActionsRow {
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.closeTimeField {
+  min-width: 160px;
+  max-width: 180px;
+}
+
+.intervalRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.intervalTitle {
+  font-size: 13px;
+  color: var(--gx-text-muted);
+  font-weight: 600;
+}
+
+.warningGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.typesList {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.typeRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 720px) {
+  .headerRow {
+    align-items: stretch;
+  }
+
+  .datePickerWrap {
+    min-width: 100%;
+    max-width: none;
+  }
+
+  .typeRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

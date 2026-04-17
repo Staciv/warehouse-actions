@@ -15,17 +15,43 @@ import { useTasks } from '../hooks/useTasks';
 import { getRepository } from '../services/repositories';
 import { useI18n } from '../shared/i18n/I18nContext';
 import { formatDate } from '../shared/utils/date';
-import type { ActionTask } from '../types/domain';
+import type { ActionTask, TaskStatus } from '../types/domain';
+import { STATUS_I18N_KEYS } from '../constants/statuses';
 import styles from './page.module.css';
 
 interface VehicleGroup {
   vehicleCode: string;
   arrivalDate: string;
   arrivalTime?: string;
+  sortTimestamp: number;
   carrierId: string;
   carrierName: string;
+  remainingPallets: number;
+  totalPallets: number;
+  primaryStatus: TaskStatus;
   tasks: ActionTask[];
 }
+
+const statusPriority: TaskStatus[] = [
+  'executing',
+  'in_progress',
+  'partial',
+  'planned',
+  'active',
+  'draft',
+  'inactive',
+  'deferred',
+  'cancelled',
+  'completed',
+  'archived'
+];
+
+const deriveVehicleStatus = (tasks: ActionTask[]): TaskStatus => {
+  for (const status of statusPriority) {
+    if (tasks.some((task) => task.status === status)) return status;
+  }
+  return tasks[0]?.status ?? 'planned';
+};
 
 export const VehiclesPage = () => {
   const { user } = useAuth();
@@ -33,6 +59,7 @@ export const VehiclesPage = () => {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [carrierId, setCarrierId] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
   const [vehicleQuery, setVehicleQuery] = useState('');
   const debouncedVehicleQuery = useDebouncedValue(vehicleQuery, 350);
 
@@ -43,30 +70,49 @@ export const VehiclesPage = () => {
   );
   const { tasks, loading, error, reload } = useTasks(filters);
 
-  const grouped = useMemo<VehicleGroup[]>(() => {
+  const groupedAll = useMemo<VehicleGroup[]>(() => {
     const map = new Map<string, ActionTask[]>();
     for (const task of tasks) {
       const prev = map.get(task.vehicleCode) ?? [];
       map.set(task.vehicleCode, [...prev, task]);
     }
 
-    return Array.from(map.entries()).map(([vehicleCode, rows]) => ({
-      vehicleCode,
-      arrivalDate: rows[0].arrivalDate,
-      arrivalTime: rows[0].arrivalTime,
-      carrierId: rows[0].carrierId,
-      carrierName: rows[0].carrierName,
-      tasks: rows
-    }));
+    return Array.from(map.entries())
+      .map(([vehicleCode, rows]) => {
+        const arrivalDate = rows[0].arrivalDate;
+        const arrivalTime = rows[0].arrivalTime;
+        const datePart = arrivalDate.slice(0, 10);
+        const datetime = `${datePart}T${arrivalTime || '00:00'}:00`;
+
+        return {
+          vehicleCode,
+          arrivalDate,
+          arrivalTime,
+          sortTimestamp: new Date(datetime).getTime(),
+          carrierId: rows[0].carrierId,
+          carrierName: rows[0].carrierName,
+          remainingPallets: rows.reduce((sum, task) => sum + task.remainingPallets, 0),
+          totalPallets: rows.reduce((sum, task) => sum + (task.totalPallets ?? 0), 0),
+          primaryStatus: deriveVehicleStatus(rows),
+          tasks: rows
+        };
+      })
+      .sort((a, b) => b.sortTimestamp - a.sortTimestamp);
   }, [tasks]);
 
+  const grouped = useMemo(
+    () => groupedAll.filter((group) => (statusFilter === 'all' ? true : group.primaryStatus === statusFilter)),
+    [groupedAll, statusFilter]
+  );
+
   const [editingVehicleCode, setEditingVehicleCode] = useState<string | null>(null);
-  const editingGroup = grouped.find((group) => group.vehicleCode === editingVehicleCode) ?? null;
+  const editingGroup = groupedAll.find((group) => group.vehicleCode === editingVehicleCode) ?? null;
 
   const [editVehicleCode, setEditVehicleCode] = useState('');
   const [editCarrierId, setEditCarrierId] = useState('');
   const [editArrivalDate, setEditArrivalDate] = useState('');
   const [editArrivalTime, setEditArrivalTime] = useState('');
+  const [editTaskTotals, setEditTaskTotals] = useState<Record<string, string>>({});
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState('');
 
@@ -76,6 +122,12 @@ export const VehiclesPage = () => {
     setEditCarrierId(group.carrierId);
     setEditArrivalDate(group.arrivalDate.slice(0, 10));
     setEditArrivalTime(group.arrivalTime ?? '');
+    setEditTaskTotals(
+      group.tasks.reduce<Record<string, string>>((acc, task) => {
+        acc[task.id] = task.totalPallets === null ? '' : String(task.totalPallets);
+        return acc;
+      }, {})
+    );
     setEditError('');
   };
 
@@ -94,6 +146,26 @@ export const VehiclesPage = () => {
       const repository = getRepository();
       const arrivalDateIso = new Date(`${editArrivalDate}T00:00:00`).toISOString();
 
+      const taskTotalsPayload = editingGroup.tasks.reduce<Record<string, number | null>>((acc, task) => {
+        const raw = (editTaskTotals[task.id] ?? '').trim();
+        if (raw === '') {
+          acc[task.id] = null;
+          return acc;
+        }
+
+        const parsed = Number(raw);
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+          throw new Error(`Liczba palet musi być większa od 0 dla akcji: ${task.actionTypeName}`);
+        }
+
+        if (parsed < task.completedPallets) {
+          throw new Error(`Palety dla akcji "${task.actionTypeName}" nie mogą być mniejsze niż wykonane (${task.completedPallets}).`);
+        }
+
+        acc[task.id] = Math.floor(parsed);
+        return acc;
+      }, {});
+
       await Promise.all(
         editingGroup.tasks.map((task) =>
           repository.updateActionTask(
@@ -102,7 +174,8 @@ export const VehiclesPage = () => {
               vehicleCode: editVehicleCode.trim(),
               carrierId: editCarrierId,
               arrivalDate: arrivalDateIso,
-              arrivalTime: editArrivalTime
+              arrivalTime: editArrivalTime,
+              totalPallets: taskTotalsPayload[task.id]
             },
             user
           )
@@ -142,6 +215,16 @@ export const VehiclesPage = () => {
           <Field label="Pojazd">
             <Input value={vehicleQuery} onChange={(e) => setVehicleQuery(e.target.value)} placeholder="Numer/kod" />
           </Field>
+          <Field label="Status">
+            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as TaskStatus | 'all')}>
+              <option value="all">Wszystkie</option>
+              {statusPriority.map((status) => (
+                <option key={status} value={status}>
+                  {t(STATUS_I18N_KEYS[status])}
+                </option>
+              ))}
+            </Select>
+          </Field>
         </div>
       </Card>
 
@@ -169,6 +252,31 @@ export const VehiclesPage = () => {
                 <Input type="time" value={editArrivalTime} onChange={(e) => setEditArrivalTime(e.target.value)} />
               </Field>
             </div>
+            <div className="stack">
+              <h4>Ilość palet dla akcji</h4>
+              <div className={styles.editTaskTotalsGrid}>
+                {editingGroup.tasks.map((task) => (
+                  <Field
+                    key={task.id}
+                    label={`${task.actionTypeName} (wykonano: ${task.completedPallets}, zostało: ${task.remainingPallets})`}
+                  >
+                    <Input
+                      type="number"
+                      min={task.completedPallets}
+                      step={1}
+                      value={editTaskTotals[task.id] ?? ''}
+                      onChange={(e) =>
+                        setEditTaskTotals((prev) => ({
+                          ...prev,
+                          [task.id]: e.target.value
+                        }))
+                      }
+                      placeholder="np. 80"
+                    />
+                  </Field>
+                ))}
+              </div>
+            </div>
 
             {editError ? <div style={{ color: '#c63d3d' }}>{editError}</div> : null}
             <div className="inlineActions">
@@ -195,8 +303,10 @@ export const VehiclesPage = () => {
                 <th>Przewoźnik</th>
                 <th>Data</th>
                 <th>Godzina</th>
+                <th>Palety do zrobienia</th>
                 <th>Akcje</th>
-                <th></th>
+                <th>Status</th>
+                <th>Edycja</th>
               </tr>
             </thead>
             <tbody>
@@ -210,6 +320,10 @@ export const VehiclesPage = () => {
                   </td>
                   <td data-label="Data">{formatDate(row.arrivalDate)}</td>
                   <td data-label="Godzina">{row.arrivalTime || '—'}</td>
+                  <td data-label="Palety do zrobienia">
+                    {row.remainingPallets}
+                    <span className="kpi"> / {row.totalPallets}</span>
+                  </td>
                   <td data-label="Akcje">
                     <div className={`stack ${styles.mobileActionList}`}>
                       {row.tasks.map((task) => (
@@ -217,15 +331,25 @@ export const VehiclesPage = () => {
                           <Link to={`/actions/${task.id}`} className={styles.mobileActionName}>
                             {task.actionTypeName}
                           </Link>
+                        </div>
+                      ))}
+                    </div>
+                  </td>
+                  <td data-label="Status" className={styles.statusCell}>
+                    <div className={`${styles.mobileActionList} ${styles.statusList}`}>
+                      {row.tasks.map((task) => (
+                        <div key={`${task.id}-status`} className={styles.statusItem}>
                           <StatusBadge status={task.status} />
                         </div>
                       ))}
                     </div>
                   </td>
-                  <td data-label="Akcje">
-                    <Button variant="secondary" onClick={() => openEdit(row)}>
-                      Edytuj
-                    </Button>
+                  <td data-label="Edycja" className={styles.editCell}>
+                    <div className={styles.editCellInner}>
+                      <Button variant="secondary" onClick={() => openEdit(row)}>
+                        Edytuj
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -39,93 +39,6 @@ export const ReportsPage = () => {
     void loader.execute();
   }, [fromDate, toDate]);
 
-  const byWorker = useMemo(() => {
-    if (!loader.data) return [];
-    const map = new Map<string, { pallets: number; minutes: number; name: string }>();
-    for (const session of loader.data.sessions) {
-      const current = map.get(session.workerId) ?? { pallets: 0, minutes: 0, name: session.workerName };
-      current.pallets += session.palletsCompletedInSession;
-      current.minutes += session.durationMinutes;
-      map.set(session.workerId, current);
-    }
-    return Array.from(map.values()).sort((a, b) => b.pallets - a.pallets);
-  }, [loader.data]);
-
-  const efficiency = useMemo(() => {
-    if (!loader.data) return { palletsPerHour: 0, palletsPerHourLabel: '0.00' };
-    const pallets = loader.data.totalPallets;
-    const minutes = loader.data.totalMinutes;
-    const perHour = minutes > 0 ? pallets / (minutes / 60) : 0;
-    return {
-      palletsPerHour: perHour,
-      palletsPerHourLabel: perHour.toFixed(2)
-    };
-  }, [loader.data]);
-
-  const avgByActionType = useMemo(() => {
-    if (!loader.data) return [] as Array<{
-      actionTypeName: string;
-      sessions: number;
-      totalPallets: number;
-      averageMinutes: number;
-      palletsPerHour: number;
-    }>;
-
-    const taskMap = new Map(loader.data.tasks.map((task) => [task.id, task]));
-    const map = new Map<string, { sessions: number; totalMinutes: number; totalPallets: number }>();
-
-    for (const session of loader.data.sessions) {
-      const task = taskMap.get(session.actionTaskId);
-      const actionTypeName = task?.actionTypeName ?? '—';
-      const current = map.get(actionTypeName) ?? { sessions: 0, totalMinutes: 0, totalPallets: 0 };
-      current.sessions += 1;
-      current.totalMinutes += session.durationMinutes;
-      current.totalPallets += session.palletsCompletedInSession;
-      map.set(actionTypeName, current);
-    }
-
-    return Array.from(map.entries())
-      .map(([actionTypeName, values]) => ({
-        actionTypeName,
-        sessions: values.sessions,
-        totalPallets: values.totalPallets,
-        averageMinutes: values.sessions > 0 ? values.totalMinutes / values.sessions : 0,
-        palletsPerHour: values.totalMinutes > 0 ? values.totalPallets / (values.totalMinutes / 60) : 0
-      }))
-      .sort((a, b) => b.sessions - a.sessions);
-  }, [loader.data]);
-
-  const topDelays = useMemo(() => {
-    if (!loader.data) return [] as Array<{
-      id: string;
-      workerName: string;
-      vehicleCode: string;
-      actionTypeName: string;
-      startedAt: string;
-      durationMinutes: number;
-      pallets: number;
-      rampNumber: string;
-    }>;
-
-    const taskMap = new Map(loader.data.tasks.map((task) => [task.id, task]));
-    return loader.data.sessions
-      .map((session) => {
-        const task = taskMap.get(session.actionTaskId);
-        return {
-          id: session.id,
-          workerName: session.workerName,
-          vehicleCode: task?.vehicleCode ?? '—',
-          actionTypeName: task?.actionTypeName ?? '—',
-          startedAt: session.startedAt,
-          durationMinutes: session.durationMinutes,
-          pallets: session.palletsCompletedInSession,
-          rampNumber: session.rampNumber
-        };
-      })
-      .sort((a, b) => b.durationMinutes - a.durationMinutes)
-      .slice(0, 10);
-  }, [loader.data]);
-
   const workerDetails = useMemo(() => {
     if (!loader.data) return [];
 
@@ -357,93 +270,13 @@ export const ReportsPage = () => {
               { label: 'Pracowników w raporcie', value: loader.data.workers },
               { label: 'Pojazdów', value: loader.data.vehicles },
               { label: 'Wykonane palety', value: loader.data.totalPallets },
-              { label: 'Akcji', value: loader.data.tasks.length },
-              { label: 'Palety / godz.', value: Number(efficiency.palletsPerHourLabel) }
+              { label: 'Akcji', value: loader.data.tasks.length }
             ]}
           />
 
           <Card>
             <h3 style={{ marginBottom: 8 }}>Czas pracy</h3>
             <div className="kpi">Łącznie: {formatMinutes(loader.data.totalMinutes)}</div>
-          </Card>
-
-          <Card>
-            <h3 style={{ marginBottom: 8 }}>Średni czas na typ akcji</h3>
-            {avgByActionType.length === 0 ? <EmptyState text="Brak danych typów akcji dla tego okresu" /> : null}
-            {avgByActionType.length > 0 ? (
-              <Table>
-                <thead>
-                  <tr>
-                    <th>Typ akcji</th>
-                    <th>Sesje</th>
-                    <th>Palety</th>
-                    <th>Średnio / sesję</th>
-                    <th>Palety / godz.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {avgByActionType.map((row) => (
-                    <tr key={row.actionTypeName}>
-                      <td data-label="Typ akcji">{row.actionTypeName}</td>
-                      <td data-label="Sesje">{row.sessions}</td>
-                      <td data-label="Palety">{row.totalPallets}</td>
-                      <td data-label="Średnio / sesję">{formatMinutes(Math.round(row.averageMinutes))}</td>
-                      <td data-label="Palety / godz.">{row.palletsPerHour.toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            ) : null}
-          </Card>
-
-          <Card>
-            <h3 style={{ marginBottom: 8 }}>Top opóźnień (najdłuższe sesje)</h3>
-            {topDelays.length === 0 ? <EmptyState text="Brak opóźnień do analizy" /> : null}
-            {topDelays.length > 0 ? (
-              <Table>
-                <thead>
-                  <tr>
-                    <th>Data</th>
-                    <th>Pracownik</th>
-                    <th>Pojazd</th>
-                    <th>Typ akcji</th>
-                    <th>Rampa</th>
-                    <th>Palety</th>
-                    <th>Czas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topDelays.map((row) => (
-                    <tr key={row.id}>
-                      <td data-label="Data">{formatDateTime(row.startedAt)}</td>
-                      <td data-label="Pracownik">{row.workerName}</td>
-                      <td data-label="Pojazd">{row.vehicleCode}</td>
-                      <td data-label="Typ akcji">{row.actionTypeName}</td>
-                      <td data-label="Rampa">{row.rampNumber}</td>
-                      <td data-label="Palety">{row.pallets}</td>
-                      <td data-label="Czas">{formatMinutes(row.durationMinutes)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            ) : null}
-          </Card>
-
-          <Card>
-            <h3 style={{ marginBottom: 8 }}>Według pracowników</h3>
-            {byWorker.length === 0 ? <EmptyState text="Brak danych pracowników w tym okresie" /> : null}
-            {byWorker.length > 0 ? (
-              <div className="stack">
-                {byWorker.map((item) => (
-                  <div key={item.name}>
-                    <strong>{item.name}</strong>
-                    <div className="kpi">
-                      {item.pallets} palet, {formatMinutes(item.minutes)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
           </Card>
 
           <Card>

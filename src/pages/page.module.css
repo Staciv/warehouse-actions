@@ -1,6 +1,6 @@
 .page {
   display: grid;
-  gap: 14px;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -19,7 +19,7 @@
 }
 
 .title {
-  font-size: 23px;
+  font-size: 21px;
   font-weight: 700;
   color: #f2f8ff;
   letter-spacing: 0.01em;
@@ -27,13 +27,13 @@
 
 .subtitle {
   color: #c9daef;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .split {
   display: grid;
   grid-template-columns: 2fr 1fr;
-  gap: 14px;
+  gap: 10px;
 }
 
 .mobileActionList {
@@ -55,6 +55,110 @@
   text-overflow: clip;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.statusCell {
+  text-align: right;
+}
+
+.statusList {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.statusItem {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.editCell {
+  text-align: right;
+}
+
+.editCellInner {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.problemSection {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+.problemFilters {
+  margin-top: 10px;
+  margin-bottom: 12px;
+}
+
+.problemList {
+  gap: 12px;
+}
+
+.problemItem {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.problemActionsInline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.workerTaskList {
+  display: grid;
+  gap: 8px;
+}
+
+.workerTaskLink {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 14px;
+}
+
+.workerTaskCard {
+  padding: 10px 12px;
+  border-radius: 14px;
+  transition: border-color var(--gx-transition), box-shadow var(--gx-transition), transform var(--gx-transition);
+}
+
+.workerTaskLink:hover .workerTaskCard {
+  border-color: var(--gx-border-strong);
+  box-shadow: var(--gx-shadow-lg);
+  transform: translateY(-1px);
+}
+
+.workerTaskHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.workerTaskBadges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.workerTaskMeta {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--gx-text-muted);
+}
+
+.editTaskTotalsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
 }
 
 @media (max-width: 1100px) {
@@ -91,5 +195,43 @@
     align-items: flex-start;
     flex-direction: column;
     gap: 6px;
+  }
+
+  .statusCell,
+  .editCell {
+    text-align: left;
+  }
+
+  .statusList,
+  .statusItem,
+  .editCellInner {
+    justify-items: start;
+    justify-content: flex-start;
+  }
+
+  .workerTaskHead {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .workerTaskMeta {
+    gap: 8px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .editTaskTotalsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .problemActionsInline {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .problemActionsInline > * {
+    width: 100%;
   }
 }

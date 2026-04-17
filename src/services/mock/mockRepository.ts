@@ -1,6 +1,18 @@
 import { MOCK_DB_STORAGE_KEY } from '../../constants/app';
 import { reconcileTaskStatus, validateRequestedTaskStatus } from '../../entities/action-task';
+import { validateProblemReportInput } from '../../entities/problem-report';
+import {
+  calculateMinutes,
+  detectOverlaps,
+  ensureEndAfterStart,
+  evaluateDayClose,
+  sortWorkEntries,
+  summarizeWorkDay,
+  toDateKey,
+  validateEntryInWorkDayBounds
+} from '../../entities/workday';
 import { calculateDurationMinutes, validateSessionInput } from '../../entities/work-session';
+import { emitDataSync } from '../../shared/utils/dataSync';
 import { toIsoNow } from '../../shared/utils/date';
 import { sha256 } from '../../shared/utils/hash';
 import { createId } from '../../shared/utils/id';
@@ -9,22 +21,45 @@ import type {
   ActionType,
   AuditLog,
   Carrier,
+  ProblemReport,
   User,
+  WorkDay,
+  WorkLogEntry,
+  WorkTypeDictionary,
   WorkSession
 } from '../../types/domain';
-import { seedActionTasks, seedActionTypes, seedCarriers, seedUsers, seedWorkSessions } from '../seed/seedData';
+import {
+  seedActionTasks,
+  seedActionTypes,
+  seedCarriers,
+  seedProblemReports,
+  seedUsers,
+  seedWorkDays,
+  seedWorkLogEntries,
+  seedWorkSessions,
+  seedWorkTypes
+} from '../seed/seedData';
 import type {
+  AddManualWorkLogEntryPayload,
   CreateActionTaskPayload,
+  CreateProblemReportPayload,
   CreateUserPayload,
   CreateWorkSessionPayload,
+  ProblemReportFilters,
   Repository,
+  StartWorkDayPayload,
   UpdateActionTaskPayload,
-  UpdateUserPayload
+  UpdateManualWorkLogEntryPayload,
+  UpdateUserPayload,
+  WorkDaysFilters
 } from '../repositories/types';
 import { applyTaskFilters, sanitizeUserForClient, withTimestamps } from '../repositories/helpers';
 import {
   assertAdmin,
+  assertCanCreateProblemReport,
   assertCanManageUserRole,
+  assertCanManageProblemReport,
+  assertCanAccessWorkerData,
   assertCanRecordWorkSession,
   assertTaskAcceptsWorkSession
 } from '../repositories/permissions';
@@ -35,6 +70,10 @@ const nowStampedUser = (value: Omit<User, 'createdAt' | 'updatedAt'>): User => w
 const nowStampedCarrier = (value: Omit<Carrier, 'createdAt' | 'updatedAt'>): Carrier => withTimestamps(value);
 const nowStampedActionType = (value: Omit<ActionType, 'createdAt' | 'updatedAt'>): ActionType => withTimestamps(value);
 const nowStampedSession = (value: Omit<WorkSession, 'createdAt' | 'updatedAt'>): WorkSession => withTimestamps(value);
+const nowStampedProblemReport = (value: Omit<ProblemReport, 'createdAt' | 'updatedAt'>): ProblemReport => withTimestamps(value);
+const nowStampedWorkType = (value: Omit<WorkTypeDictionary, 'createdAt' | 'updatedAt'>): WorkTypeDictionary => withTimestamps(value);
+const nowStampedWorkDay = (value: Omit<WorkDay, 'createdAt' | 'updatedAt'>): WorkDay => withTimestamps(value);
+const nowStampedWorkLogEntry = (value: Omit<WorkLogEntry, 'createdAt' | 'updatedAt'>): WorkLogEntry => withTimestamps(value);
 
 const redactAuditValue = (value: unknown): unknown => {
   if (!value || typeof value !== 'object') return value;
@@ -93,6 +132,10 @@ const getInitialDb = async (): Promise<MockDb> => {
     actionTypes: seedActionTypes.map((item) => nowStampedActionType(item)),
     actionTasks: seedActionTasks.map((item) => nowStamped(item)),
     workSessions: seedWorkSessions.map((item) => nowStampedSession(item)),
+    workDays: seedWorkDays.map((item) => nowStampedWorkDay(item)),
+    workLogEntries: seedWorkLogEntries.map((item) => nowStampedWorkLogEntry(item)),
+    workTypes: seedWorkTypes.map((item) => nowStampedWorkType(item)),
+    problemReports: seedProblemReports.map((item) => nowStampedProblemReport(item)),
     auditLogs: []
   };
 };
@@ -128,6 +171,10 @@ export class MockRepository implements Repository {
       ...session,
       rampNumber: session.rampNumber ?? '—'
     }));
+    this.db.workDays = (this.db.workDays ?? []).map((day) => day);
+    this.db.workLogEntries = (this.db.workLogEntries ?? []).map((entry) => entry);
+    this.db.workTypes = (this.db.workTypes ?? []).map((entry) => entry);
+    this.db.problemReports = (this.db.problemReports ?? []).map((report) => report);
     if (!existing) this.persist();
     return this.db;
   }
@@ -135,6 +182,52 @@ export class MockRepository implements Repository {
   private persist() {
     if (!this.db) return;
     localStorage.setItem(MOCK_DB_STORAGE_KEY, JSON.stringify(this.db));
+  }
+
+  private getOrCreateWorkDay(db: MockDb, worker: User, dateKey: string, actor: User) {
+    let day = db.workDays.find((entry) => entry.workerId === worker.id && entry.date === dateKey && entry.status === 'active');
+    if (day) return day;
+
+    day = nowStampedWorkDay({
+      id: createId(),
+      workerId: worker.id,
+      workerName: worker.displayName,
+      date: dateKey,
+      actualStart: `${dateKey}T00:00:00.000Z`,
+      plannedEnd: `${dateKey}T08:00:00.000Z`,
+      status: 'active',
+      totalPresenceMinutes: 0,
+      totalWorkedMinutes: 0,
+      totalGapMinutes: 0
+    });
+    db.workDays.push(day);
+    db.auditLogs.push(createAudit('workDay' as AuditLog['entityType'], day.id, 'auto_create', null, day, actor));
+    return day;
+  }
+
+  private recalculateWorkDay(db: MockDb, workDayId: string) {
+    const day = db.workDays.find((entry) => entry.id === workDayId);
+    if (!day) return;
+    const entries = db.workLogEntries.filter((entry) => entry.workDayId === workDayId);
+    const summary = summarizeWorkDay(day, entries);
+    day.totalGapMinutes = summary.totalGapMinutes;
+    day.totalWorkedMinutes = summary.totalWorkedMinutes;
+    day.totalPresenceMinutes = summary.totalPresenceMinutes;
+    day.updatedAt = toIsoNow();
+  }
+
+  private closeOpenEntryIfNeeded(db: MockDb, workerId: string, closeAt: string) {
+    const openEntry = db.workLogEntries
+      .filter((entry) => entry.workerId === workerId && !entry.endTime)
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
+    if (!openEntry) return;
+
+    if (new Date(closeAt).getTime() > new Date(openEntry.startTime).getTime()) {
+      openEntry.endTime = closeAt;
+      openEntry.durationMinutes = calculateMinutes(openEntry.startTime, closeAt);
+      openEntry.isAutoClosed = true;
+      openEntry.updatedAt = toIsoNow();
+    }
   }
 
   async seedIfEmpty() {
@@ -357,6 +450,7 @@ export class MockRepository implements Repository {
     db.actionTasks.push(task);
     db.auditLogs.push(createAudit('actionTask', task.id, 'create', null, task, actor));
     this.persist();
+    emitDataSync(['tasks']);
     return task;
   }
 
@@ -398,9 +492,38 @@ export class MockRepository implements Repository {
     worker.availabilityStatus = task.status === 'completed' ? 'completed' : 'in_action';
     worker.updatedAt = toIsoNow();
 
+    const now = toIsoNow();
+    const dateKey = toDateKey(now);
+    const workDay = this.getOrCreateWorkDay(db, worker, dateKey, actor);
+    this.closeOpenEntryIfNeeded(db, worker.id, now);
+    db.workLogEntries.push(
+      nowStampedWorkLogEntry({
+        id: createId(),
+        workDayId: workDay.id,
+        workerId: worker.id,
+        workerName: worker.displayName,
+        source: 'action',
+        workTypeId: 'wt-action',
+        workTypeName: 'Akcja magazynowa',
+        relatedActionId: task.id,
+        relatedActionType: task.actionTypeName,
+        relatedCarrierId: task.carrierId,
+        relatedCarrierName: task.carrierName,
+        relatedVehicleCode: task.vehicleCode,
+        startTime: now,
+        endTime: undefined,
+        durationMinutes: 0,
+        palletsCompleted: 0,
+        comment: 'Auto-start z rozpoczęcia akcji',
+        isAutoClosed: false
+      })
+    );
+    this.recalculateWorkDay(db, workDay.id);
+
     db.auditLogs.push(createAudit('actionTask', task.id, 'start_execution', oldTask, task, actor));
     db.auditLogs.push(createAudit('user', worker.id, 'worker_status_update', oldWorker, worker, actor));
     this.persist();
+    emitDataSync(['tasks', 'users', 'workdays']);
     return task;
   }
 
@@ -452,9 +575,22 @@ export class MockRepository implements Repository {
     worker.availabilityStatus = hasOtherActiveExecutions ? 'in_action' : 'available';
     worker.updatedAt = toIsoNow();
 
+    const now = toIsoNow();
+    const openActionEntry = db.workLogEntries
+      .filter((entry) => entry.workerId === workerId && entry.relatedActionId === task.id && !entry.endTime)
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
+    if (openActionEntry) {
+      openActionEntry.endTime = now;
+      openActionEntry.durationMinutes = calculateMinutes(openActionEntry.startTime, now);
+      openActionEntry.isAutoClosed = true;
+      openActionEntry.updatedAt = now;
+      this.recalculateWorkDay(db, openActionEntry.workDayId);
+    }
+
     db.auditLogs.push(createAudit('actionTask', task.id, 'stop_execution', oldTask, task, actor));
     db.auditLogs.push(createAudit('user', worker.id, 'worker_status_update', oldWorker, worker, actor));
     this.persist();
+    emitDataSync(['tasks', 'users', 'workdays']);
     return task;
   }
 
@@ -530,6 +666,7 @@ export class MockRepository implements Repository {
 
     db.auditLogs.push(createAudit('actionTask', task.id, 'update', old, task, actor));
     this.persist();
+    emitDataSync(['tasks', 'users']);
     return task;
   }
 
@@ -605,6 +742,44 @@ export class MockRepository implements Repository {
     task.updatedAt = toIsoNow();
 
     db.workSessions.push(session);
+    const workDayDateKey = toDateKey(payload.startedAt);
+    const workDay = this.getOrCreateWorkDay(db, worker, workDayDateKey, actor);
+    let actionEntry = db.workLogEntries
+      .filter((entry) => entry.workDayId === workDay.id && entry.relatedActionId === task.id)
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
+
+    if (!actionEntry) {
+      actionEntry = nowStampedWorkLogEntry({
+        id: createId(),
+        workDayId: workDay.id,
+        workerId: worker.id,
+        workerName: worker.displayName,
+        source: 'action',
+        workTypeId: 'wt-action',
+        workTypeName: 'Akcja magazynowa',
+        relatedActionId: task.id,
+        relatedActionType: task.actionTypeName,
+        relatedCarrierId: task.carrierId,
+        relatedCarrierName: task.carrierName,
+        relatedVehicleCode: task.vehicleCode,
+        startTime: payload.startedAt,
+        endTime: payload.endedAt,
+        durationMinutes: calculateMinutes(payload.startedAt, payload.endedAt),
+        palletsCompleted: payload.palletsCompletedInSession,
+        comment: payload.comment,
+        isAutoClosed: false
+      });
+      db.workLogEntries.push(actionEntry);
+    } else {
+      actionEntry.startTime = payload.startedAt;
+      actionEntry.endTime = payload.endedAt;
+      actionEntry.durationMinutes = calculateMinutes(payload.startedAt, payload.endedAt);
+      actionEntry.palletsCompleted = (actionEntry.palletsCompleted ?? 0) + payload.palletsCompletedInSession;
+      actionEntry.comment = payload.comment ?? actionEntry.comment;
+      actionEntry.updatedAt = toIsoNow();
+    }
+
+    this.recalculateWorkDay(db, workDay.id);
     db.auditLogs.push(createAudit('workSession', session.id, 'create', null, session, actor));
     db.auditLogs.push(createAudit('actionTask', task.id, 'progress_update', old, task, actor));
 
@@ -628,7 +803,322 @@ export class MockRepository implements Repository {
     }
 
     this.persist();
+    emitDataSync(['tasks', 'sessions', 'users', 'workdays']);
     return session;
+  }
+
+  async createProblemReport(payload: CreateProblemReportPayload, actor: User) {
+    const db = await this.ensureDb();
+    assertCanCreateProblemReport(actor);
+    let vehicleCode = payload.vehicleCode?.trim() ?? '';
+    if (payload.actionTaskId) {
+      const task = db.actionTasks.find((entry) => entry.id === payload.actionTaskId);
+      if (!task) throw new Error('Nie znaleziono akcji do zgłoszenia problemu');
+      vehicleCode = task.vehicleCode;
+    }
+    const validationError = validateProblemReportInput(payload.issueType, payload.rampNumber, payload.shortDescription, vehicleCode);
+    if (validationError) throw new Error(validationError);
+
+    const now = toIsoNow();
+    const message = `Problem: ${payload.issueType}\nMaszyna: ${vehicleCode}\nRampa: ${payload.rampNumber}\nCzas: ${now}\nZgłosił: ${actor.displayName}`;
+    const report: ProblemReport = nowStampedProblemReport({
+      id: createId(),
+      actionTaskId: payload.actionTaskId,
+      vehicleCode,
+      issueType: payload.issueType,
+      rampNumber: payload.rampNumber.trim(),
+      shortDescription: payload.shortDescription.trim(),
+      photoUrl: payload.photoUrl?.trim() || undefined,
+      message,
+      status: 'new',
+      createdByUserId: actor.id,
+      createdByUserName: actor.displayName,
+      createdByUserRole: actor.role,
+      updatedByUserId: actor.id,
+      updatedByUserName: actor.displayName
+    });
+
+    db.problemReports.push(report);
+    db.auditLogs.push(createAudit('problemReport', report.id, 'create', null, report, actor));
+    this.persist();
+    emitDataSync(['problems']);
+    return report;
+  }
+
+  async getProblemReports(filters: ProblemReportFilters | undefined, actor: User) {
+    const db = await this.ensureDb();
+    const isAdmin = actor.role === 'admin' || actor.role === 'superadmin';
+    const base = isAdmin ? db.problemReports : db.problemReports.filter((item) => item.createdByUserId === actor.id);
+    return [...base]
+      .filter((item) => (filters?.actionTaskId ? item.actionTaskId === filters.actionTaskId : true))
+      .filter((item) => (filters?.status && filters.status !== 'all' ? item.status === filters.status : true))
+      .filter((item) => (filters?.issueType && filters.issueType !== 'all' ? item.issueType === filters.issueType : true))
+      .filter((item) =>
+        filters?.rampNumber ? item.rampNumber.toLowerCase().includes(filters.rampNumber.toLowerCase()) : true
+      )
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async updateProblemReportStatus(id: string, status: ProblemReport['status'], actor: User) {
+    const db = await this.ensureDb();
+    assertCanManageProblemReport(actor);
+    const report = db.problemReports.find((item) => item.id === id);
+    if (!report) throw new Error('Nie znaleziono zgłoszenia');
+
+    const old = { ...report };
+    report.status = status;
+    report.updatedByUserId = actor.id;
+    report.updatedByUserName = actor.displayName;
+    report.updatedAt = toIsoNow();
+    report.resolvedAt = status === 'resolved' ? toIsoNow() : report.resolvedAt;
+    db.auditLogs.push(createAudit('problemReport', report.id, 'status_update', old, report, actor));
+    this.persist();
+    emitDataSync(['problems']);
+    return report;
+  }
+
+  async getWorkTypes() {
+    const db = await this.ensureDb();
+    return [...db.workTypes].filter((entry) => entry.isActive).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+  }
+
+  async upsertWorkType(workType: Omit<WorkTypeDictionary, 'createdAt' | 'updatedAt'>, actor: User) {
+    assertAdmin(actor);
+    const db = await this.ensureDb();
+    const existing = db.workTypes.find((entry) => entry.id === workType.id);
+    if (existing) {
+      const old = { ...existing };
+      existing.name = workType.name;
+      existing.category = workType.category;
+      existing.isActive = workType.isActive;
+      existing.updatedAt = toIsoNow();
+      db.auditLogs.push(createAudit('workType' as AuditLog['entityType'], existing.id, 'update', old, existing, actor));
+      this.persist();
+      return existing;
+    }
+
+    const next = nowStampedWorkType(workType);
+    db.workTypes.push(next);
+    db.auditLogs.push(createAudit('workType' as AuditLog['entityType'], next.id, 'create', null, next, actor));
+    this.persist();
+    return next;
+  }
+
+  async getWorkDayByDate(workerId: string, date: string, actor: User) {
+    const db = await this.ensureDb();
+    assertCanAccessWorkerData(actor, workerId);
+    return db.workDays.find((entry) => entry.workerId === workerId && entry.date === date) ?? null;
+  }
+
+  async getWorkDays(filters: WorkDaysFilters | undefined, actor: User) {
+    const db = await this.ensureDb();
+    let rows = [...db.workDays];
+    if (actor.role === 'worker') rows = rows.filter((entry) => entry.workerId === actor.id);
+    if (filters?.workerId && actor.role !== 'worker') rows = rows.filter((entry) => entry.workerId === filters.workerId);
+    if (filters?.date) rows = rows.filter((entry) => entry.date === filters.date);
+    if (filters?.status && filters.status !== 'all') rows = rows.filter((entry) => entry.status === filters.status);
+    return rows.sort((a, b) => (b.date + b.updatedAt).localeCompare(a.date + a.updatedAt));
+  }
+
+  async startWorkDay(payload: StartWorkDayPayload, actor: User) {
+    const db = await this.ensureDb();
+    assertCanAccessWorkerData(actor, payload.workerId);
+    const worker = db.users.find((entry) => entry.id === payload.workerId);
+    if (!worker) throw new Error('Nie znaleziono pracownika');
+
+    const existingActive = db.workDays.find(
+      (entry) => entry.workerId === payload.workerId && entry.date === payload.date && entry.status === 'active'
+    );
+    if (existingActive) return existingActive;
+
+    if (ensureEndAfterStart(payload.actualStart, payload.plannedEnd)) {
+      throw new Error('Planowane zakończenie musi być późniejsze niż start pracy.');
+    }
+
+    const draftDay: Pick<WorkDay, 'actualStart' | 'actualEnd' | 'date'> = {
+      actualStart: payload.actualStart,
+      actualEnd: undefined,
+      date: payload.date
+    };
+
+    const preEntries: WorkLogEntry[] = payload.preShiftIntervals.map((item) => {
+      const type = db.workTypes.find((entry) => entry.id === item.workTypeId);
+      if (!type) throw new Error('Nie znaleziono typu pracy');
+      const validationError = ensureEndAfterStart(item.startTime, item.endTime);
+      if (validationError) throw new Error(validationError);
+      const dayBoundError = validateEntryInWorkDayBounds(draftDay, item.startTime, item.endTime);
+      if (dayBoundError) throw new Error(dayBoundError);
+      return nowStampedWorkLogEntry({
+        id: createId(),
+        workDayId: '',
+        workerId: worker.id,
+        workerName: worker.displayName,
+        source: 'manual',
+        workTypeId: type.id,
+        workTypeName: type.name,
+        startTime: item.startTime,
+        endTime: item.endTime,
+        durationMinutes: calculateMinutes(item.startTime, item.endTime),
+        comment: item.comment,
+        isAutoClosed: false
+      });
+    });
+
+    const overlaps = detectOverlaps(preEntries);
+    if (overlaps.length > 0) throw new Error('Wykryto nakładające się interwały startowe.');
+
+    const day = nowStampedWorkDay({
+      id: createId(),
+      workerId: worker.id,
+      workerName: worker.displayName,
+      date: payload.date,
+      actualStart: payload.actualStart,
+      plannedEnd: payload.plannedEnd,
+      status: 'active',
+      totalPresenceMinutes: 0,
+      totalWorkedMinutes: 0,
+      totalGapMinutes: 0
+    });
+
+    db.workDays.push(day);
+    for (const entry of preEntries) {
+      entry.workDayId = day.id;
+      db.workLogEntries.push(entry);
+    }
+    this.recalculateWorkDay(db, day.id);
+    db.auditLogs.push(createAudit('workDay' as AuditLog['entityType'], day.id, 'start_day', null, day, actor));
+    this.persist();
+    return day;
+  }
+
+  async updateWorkDayPlannedEnd(workDayId: string, plannedEnd: string, actor: User) {
+    const db = await this.ensureDb();
+    const day = db.workDays.find((entry) => entry.id === workDayId);
+    if (!day) throw new Error('Nie znaleziono karty pracy');
+    assertCanAccessWorkerData(actor, day.workerId);
+    if (day.status !== 'active' && actor.role === 'worker') {
+      throw new Error('Nie można edytować zamkniętej karty pracy');
+    }
+
+    const validationError = ensureEndAfterStart(day.actualStart, plannedEnd);
+    if (validationError) throw new Error(validationError);
+    const old = { ...day };
+    day.plannedEnd = plannedEnd;
+    day.updatedAt = toIsoNow();
+    db.auditLogs.push(createAudit('workDay' as AuditLog['entityType'], day.id, 'update_planned_end', old, day, actor));
+    this.persist();
+    return day;
+  }
+
+  async closeWorkDay(workDayId: string, actualEnd: string, actor: User) {
+    const db = await this.ensureDb();
+    const day = db.workDays.find((entry) => entry.id === workDayId);
+    if (!day) throw new Error('Nie znaleziono karty pracy');
+    assertCanAccessWorkerData(actor, day.workerId);
+    if (day.status === 'closed') return day;
+
+    const entries = db.workLogEntries.filter((entry) => entry.workDayId === day.id);
+    const openEntry = entries.find((entry) => !entry.endTime);
+    if (openEntry) throw new Error('Nie można zamknąć dnia: aktywność nadal trwa.');
+    const overlaps = detectOverlaps(entries);
+    if (overlaps.length > 0) throw new Error('Nie można zamknąć dnia: wykryto nakładanie interwałów.');
+
+    const old = { ...day };
+    day.actualEnd = actualEnd;
+    const closeEval = evaluateDayClose(day.plannedEnd, actualEnd);
+    day.countedEnd = closeEval.countedEnd;
+    day.status = 'closed';
+    day.updatedAt = toIsoNow();
+    this.recalculateWorkDay(db, day.id);
+    db.auditLogs.push(createAudit('workDay' as AuditLog['entityType'], day.id, 'close_day', old, day, actor));
+    this.persist();
+    return day;
+  }
+
+  async getWorkLogEntries(workDayId: string, actor: User) {
+    const db = await this.ensureDb();
+    const day = db.workDays.find((entry) => entry.id === workDayId);
+    if (!day) throw new Error('Nie znaleziono karty pracy');
+    assertCanAccessWorkerData(actor, day.workerId);
+    return sortWorkEntries(db.workLogEntries.filter((entry) => entry.workDayId === workDayId));
+  }
+
+  async addManualWorkLogEntry(payload: AddManualWorkLogEntryPayload, actor: User) {
+    const db = await this.ensureDb();
+    const day = db.workDays.find((entry) => entry.id === payload.workDayId);
+    if (!day) throw new Error('Nie znaleziono karty pracy');
+    assertCanAccessWorkerData(actor, day.workerId);
+    if (day.status !== 'active' && actor.role === 'worker') throw new Error('Karta pracy jest zamknięta');
+    if (payload.workerId !== day.workerId) throw new Error('Niepoprawny pracownik');
+
+    const type = db.workTypes.find((entry) => entry.id === payload.workTypeId);
+    if (!type) throw new Error('Nie znaleziono typu pracy');
+    const validationError = ensureEndAfterStart(payload.startTime, payload.endTime);
+    if (validationError) throw new Error(validationError);
+    const dayBoundError = validateEntryInWorkDayBounds(day, payload.startTime, payload.endTime);
+    if (dayBoundError) throw new Error(dayBoundError);
+
+    const next = nowStampedWorkLogEntry({
+      id: createId(),
+      workDayId: day.id,
+      workerId: day.workerId,
+      workerName: day.workerName,
+      source: 'manual',
+      workTypeId: type.id,
+      workTypeName: type.name,
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+      durationMinutes: calculateMinutes(payload.startTime, payload.endTime),
+      comment: payload.comment,
+      isAutoClosed: false
+    });
+
+    const entries = [...db.workLogEntries.filter((entry) => entry.workDayId === day.id), next];
+    const overlaps = detectOverlaps(entries);
+    if (overlaps.length > 0) throw new Error('Nakładające się interwały nie są dozwolone.');
+
+    db.workLogEntries.push(next);
+    this.recalculateWorkDay(db, day.id);
+    db.auditLogs.push(createAudit('workLogEntry' as AuditLog['entityType'], next.id, 'create_manual', null, next, actor));
+    this.persist();
+    return next;
+  }
+
+  async updateManualWorkLogEntry(entryId: string, payload: UpdateManualWorkLogEntryPayload, actor: User) {
+    const db = await this.ensureDb();
+    const entry = db.workLogEntries.find((item) => item.id === entryId);
+    if (!entry) throw new Error('Nie znaleziono wpisu');
+    const day = db.workDays.find((item) => item.id === entry.workDayId);
+    if (!day) throw new Error('Nie znaleziono karty pracy');
+    assertCanAccessWorkerData(actor, day.workerId);
+    if (entry.source !== 'manual' && actor.role === 'worker') throw new Error('Pracownik może edytować tylko wpisy ręczne');
+    if (day.status !== 'active' && actor.role === 'worker') throw new Error('Karta pracy jest zamknięta');
+
+    const old = { ...entry };
+    if (payload.workTypeId) {
+      const type = db.workTypes.find((item) => item.id === payload.workTypeId);
+      if (!type) throw new Error('Nie znaleziono typu pracy');
+      entry.workTypeId = type.id;
+      entry.workTypeName = type.name;
+    }
+    if (payload.startTime) entry.startTime = payload.startTime;
+    if (payload.endTime) entry.endTime = payload.endTime;
+    if (payload.comment !== undefined) entry.comment = payload.comment;
+    if (!entry.endTime) throw new Error('Wpis ręczny musi mieć czas zakończenia');
+    const validationError = ensureEndAfterStart(entry.startTime, entry.endTime);
+    if (validationError) throw new Error(validationError);
+    const dayBoundError = validateEntryInWorkDayBounds(day, entry.startTime, entry.endTime);
+    if (dayBoundError) throw new Error(dayBoundError);
+    entry.durationMinutes = calculateMinutes(entry.startTime, entry.endTime);
+    entry.updatedAt = toIsoNow();
+
+    const entries = db.workLogEntries.filter((item) => item.workDayId === day.id);
+    const overlaps = detectOverlaps(entries);
+    if (overlaps.length > 0) throw new Error('Nakładające się interwały nie są dozwolone.');
+    this.recalculateWorkDay(db, day.id);
+    db.auditLogs.push(createAudit('workLogEntry' as AuditLog['entityType'], entry.id, 'update_manual', old, entry, actor));
+    this.persist();
+    return entry;
   }
 
   async getAuditLogs(entityType: AuditLog['entityType'] | undefined, entityId: string | undefined, actor: User) {

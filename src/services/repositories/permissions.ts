@@ -37,6 +37,22 @@ export const assertCanRecordWorkSession = (actor: User, workerId: string) => {
   }
 };
 
+export const assertCanCreateProblemReport = (actor: User) => {
+  if (actor.role !== 'worker') {
+    throw new Error('Zgłoszenie problemu może utworzyć tylko pracownik');
+  }
+};
+
+export const assertCanManageProblemReport = (actor: User) => {
+  assertAdmin(actor);
+};
+
+export const assertCanAccessWorkerData = (actor: User, workerId: string) => {
+  if (actor.role === 'admin' || actor.role === 'superadmin') return;
+  if (actor.role === 'worker' && actor.id === workerId) return;
+  throw new Error('Brak uprawnień do danych karty pracy');
+};
+
 export const assertTaskAcceptsWorkSession = (task: ActionTask, workerId: string) => {
   if (task.archived || task.status === 'archived') {
     throw new Error('Akcja archiwalna jest niedostępna do wykonania');

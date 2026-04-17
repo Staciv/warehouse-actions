@@ -1,4 +1,4 @@
-import type { ActionTask, ActionType, AuditLog, Carrier, User, WorkSession } from '../../types/domain';
+import type { ActionTask, ActionType, AuditLog, Carrier, ProblemReport, User, WorkDay, WorkLogEntry, WorkSession, WorkTypeDictionary } from '../../types/domain';
 
 export interface MockDb {
   users: User[];
@@ -6,5 +6,9 @@ export interface MockDb {
   actionTypes: ActionType[];
   actionTasks: ActionTask[];
   workSessions: WorkSession[];
+  workDays: WorkDay[];
+  workLogEntries: WorkLogEntry[];
+  workTypes: WorkTypeDictionary[];
+  problemReports: ProblemReport[];
   auditLogs: AuditLog[];
 }

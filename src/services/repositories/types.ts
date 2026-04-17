@@ -4,7 +4,13 @@ import type {
   ActionType,
   AuditLog,
   Carrier,
+  ProblemIssueType,
+  ProblemReport,
+  ProblemStatus,
   User,
+  WorkDay,
+  WorkLogEntry,
+  WorkTypeDictionary,
   WorkSession
 } from '../../types/domain';
 
@@ -61,6 +67,56 @@ export interface QueryOptions {
   toDate?: string;
 }
 
+export interface CreateProblemReportPayload {
+  actionTaskId?: string;
+  vehicleCode?: string;
+  issueType: ProblemIssueType;
+  rampNumber: string;
+  shortDescription: string;
+  photoUrl?: string;
+}
+
+export interface ProblemReportFilters {
+  status?: ProblemStatus | 'all';
+  issueType?: ProblemIssueType | 'all';
+  rampNumber?: string;
+  actionTaskId?: string;
+}
+
+export interface WorkDayIntervalInput {
+  startTime: string;
+  endTime: string;
+  workTypeId: string;
+  comment?: string;
+}
+
+export interface StartWorkDayPayload {
+  workerId: string;
+  date: string;
+  actualStart: string;
+  plannedEnd: string;
+  preShiftIntervals: WorkDayIntervalInput[];
+}
+
+export interface AddManualWorkLogEntryPayload {
+  workDayId: string;
+  workerId: string;
+  workTypeId: string;
+  startTime: string;
+  endTime: string;
+  comment?: string;
+}
+
+export interface UpdateManualWorkLogEntryPayload extends Partial<Omit<AddManualWorkLogEntryPayload, 'workDayId' | 'workerId'>> {
+  endTime?: string;
+}
+
+export interface WorkDaysFilters {
+  date?: string;
+  workerId?: string;
+  status?: WorkDay['status'] | 'all';
+}
+
 export interface Repository {
   mode: 'mock' | 'firebase';
   seedIfEmpty: () => Promise<void>;
@@ -89,6 +145,21 @@ export interface Repository {
   getWorkSessionsByTask: (taskId: string) => Promise<WorkSession[]>;
   getWorkSessions: (options?: QueryOptions) => Promise<WorkSession[]>;
   createWorkSession: (payload: CreateWorkSessionPayload, actor: User) => Promise<WorkSession>;
+
+  createProblemReport: (payload: CreateProblemReportPayload, actor: User) => Promise<ProblemReport>;
+  getProblemReports: (filters: ProblemReportFilters | undefined, actor: User) => Promise<ProblemReport[]>;
+  updateProblemReportStatus: (id: string, status: ProblemStatus, actor: User) => Promise<ProblemReport>;
+
+  getWorkTypes: () => Promise<WorkTypeDictionary[]>;
+  upsertWorkType: (workType: Omit<WorkTypeDictionary, 'createdAt' | 'updatedAt'>, actor: User) => Promise<WorkTypeDictionary>;
+  getWorkDayByDate: (workerId: string, date: string, actor: User) => Promise<WorkDay | null>;
+  getWorkDays: (filters: WorkDaysFilters | undefined, actor: User) => Promise<WorkDay[]>;
+  startWorkDay: (payload: StartWorkDayPayload, actor: User) => Promise<WorkDay>;
+  updateWorkDayPlannedEnd: (workDayId: string, plannedEnd: string, actor: User) => Promise<WorkDay>;
+  closeWorkDay: (workDayId: string, actualEnd: string, actor: User) => Promise<WorkDay>;
+  getWorkLogEntries: (workDayId: string, actor: User) => Promise<WorkLogEntry[]>;
+  addManualWorkLogEntry: (payload: AddManualWorkLogEntryPayload, actor: User) => Promise<WorkLogEntry>;
+  updateManualWorkLogEntry: (entryId: string, payload: UpdateManualWorkLogEntryPayload, actor: User) => Promise<WorkLogEntry>;
 
   getAuditLogs: (entityType: AuditLog['entityType'] | undefined, entityId: string | undefined, actor: User) => Promise<AuditLog[]>;
 }

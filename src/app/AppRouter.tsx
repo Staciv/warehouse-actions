@@ -14,6 +14,10 @@ import { CarriersPage } from '../pages/CarriersPage';
 import { ActionTypesPage } from '../pages/ActionTypesPage';
 import { ReportsPage } from '../pages/ReportsPage';
 import { WorkerCompletedPage } from '../pages/WorkerCompletedPage';
+import { WorkerReportProblemPage } from '../pages/WorkerReportProblemPage';
+import { ProblemsPage } from '../pages/ProblemsPage';
+import { WorkerWorkCardPage } from '../pages/WorkerWorkCardPage';
+import { AdminWorkCardsPage } from '../pages/AdminWorkCardsPage';
 
 export const AppRouter = () => {
   const { user } = useAuth();
@@ -26,7 +30,9 @@ export const AppRouter = () => {
         <Route element={<AppShell />}>
           <Route path={ROUTES.dashboard} element={<DashboardPage />} />
           <Route element={<RoleRoute allowedRoles={['worker']} />}>
+            <Route path={ROUTES.workerWorkCard} element={<WorkerWorkCardPage />} />
             <Route path={ROUTES.workerCompleted} element={<WorkerCompletedPage />} />
+            <Route path={ROUTES.workerReportProblem} element={<WorkerReportProblemPage />} />
           </Route>
           <Route path={ROUTES.actions} element={<ActionsPage />} />
           <Route path={ROUTES.actionDetails} element={<ActionDetailsPage />} />
@@ -35,9 +41,11 @@ export const AppRouter = () => {
             <Route path={ROUTES.completed} element={<CompletedActionsPage />} />
             <Route path={ROUTES.vehicles} element={<VehiclesPage />} />
             <Route path={ROUTES.workers} element={<WorkersPage />} />
+            <Route path={ROUTES.problems} element={<ProblemsPage />} />
             <Route path={ROUTES.carriers} element={<CarriersPage />} />
             <Route path={ROUTES.actionTypes} element={<ActionTypesPage />} />
             <Route path={ROUTES.reports} element={<ReportsPage />} />
+            <Route path={ROUTES.adminWorkCards} element={<AdminWorkCardsPage />} />
           </Route>
         </Route>
       </Route>
