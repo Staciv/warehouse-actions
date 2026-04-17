@@ -13,8 +13,8 @@ import { detectGaps, detectOverlaps, evaluateDayClose, hasActiveWorkEntry, toDat
 import { getRepository } from '../services/repositories';
 import { formatDate, formatDateTime, formatMinutes, toIsoNow } from '../shared/utils/date';
 import { useI18n } from '../shared/i18n/I18nContext';
-import type { AddManualWorkLogEntryPayload, StartWorkDayPayload, UpdateManualWorkLogEntryPayload } from '../services/repositories/types';
-import type { WorkDay, WorkLogEntry, WorkTypeDictionary } from '../types/domain';
+import type { AddManualWorkLogEntryPayload, CloseWorkDayPayload, StartWorkDayPayload, UpdateManualWorkLogEntryPayload } from '../services/repositories/types';
+import type { WorkDay, WorkDayExitTarget, WorkLogEntry, WorkTypeDictionary } from '../types/domain';
 import styles from './workCard.module.css';
 
 interface StartIntervalDraft {
@@ -43,6 +43,15 @@ const renderCompactTime = (iso?: string) => {
 const todayDateKey = () => toDateKey(toIsoNow());
 const fiveMinutesMs = 5 * 60 * 1000;
 const isQuarterHourTime = (value: string) => /^([01]\d|2[0-3]):(00|15|30|45)$/.test(value);
+const defaultShiftMinutes = 8 * 60;
+
+const addMinutesToDateKeyTime = (date: string, time: string, minutes: number) => {
+  const base = new Date(`${date}T${time}:00`);
+  base.setMinutes(base.getMinutes() + minutes);
+  const hrs = String(base.getHours()).padStart(2, '0');
+  const mins = String(base.getMinutes()).padStart(2, '0');
+  return `${hrs}:${mins}`;
+};
 
 export const WorkerWorkCardPage = () => {
   const { user } = useAuth();
@@ -59,7 +68,6 @@ export const WorkerWorkCardPage = () => {
   const [dateKey, setDateKey] = useState(todayDateKey());
 
   const [startAt, setStartAt] = useState('06:00');
-  const [plannedEndAt, setPlannedEndAt] = useState('14:00');
   const [intervals, setIntervals] = useState<StartIntervalDraft[]>([]);
 
   const [showManualForm, setShowManualForm] = useState(false);
@@ -69,11 +77,10 @@ export const WorkerWorkCardPage = () => {
   const [manualEnd, setManualEnd] = useState('');
   const [manualComment, setManualComment] = useState('');
 
-  const [showPlannedEndForm, setShowPlannedEndForm] = useState(false);
-  const [plannedEndDraft, setPlannedEndDraft] = useState('');
-
   const [closeAt, setCloseAt] = useState(extractTime(toIsoNow()));
-  const [closeWarningMinutes, setCloseWarningMinutes] = useState<number | null>(null);
+  const [closeTarget, setCloseTarget] = useState<WorkDayExitTarget | ''>('');
+  const [closeTargetWorkTypeId, setCloseTargetWorkTypeId] = useState('');
+  const [closeComment, setCloseComment] = useState('');
 
   const load = async () => {
     if (!user) return;
@@ -93,7 +100,6 @@ export const WorkerWorkCardPage = () => {
       if (dayRow) {
         const logs = await repository.getWorkLogEntries(dayRow.id, user);
         setEntries(logs);
-        setPlannedEndDraft(extractTime(dayRow.plannedEnd));
       } else {
         setEntries([]);
         setIntervals([]);
@@ -113,8 +119,17 @@ export const WorkerWorkCardPage = () => {
   const gaps = useMemo(() => detectGaps(entries), [entries]);
   const activeEntry = useMemo(() => entries.find((entry) => !entry.endTime) ?? null, [entries]);
   const manualTypes = useMemo(() => workTypes.filter((entry) => entry.category !== 'system'), [workTypes]);
+  const transferTypes = useMemo(
+    () => workTypes.filter((entry) => entry.category === 'manual' || entry.category === 'pre_shift'),
+    [workTypes]
+  );
   const isDayActive = day?.status === 'active';
   const isTodayView = dateKey === todayDateKey();
+  const closeEvaluation = useMemo(() => {
+    if (!day || !isQuarterHourTime(closeAt)) return null;
+    return evaluateDayClose(day.plannedEnd, toIsoByDateAndTime(day.date, closeAt));
+  }, [day, closeAt]);
+  const requiresExitReason = Boolean(closeEvaluation && closeEvaluation.earlyByMinutes > 0);
   const getEntryStatusLabel = (entry: WorkLogEntry) => {
     if (!entry.endTime) return t('workCard.entryActive', 'W trakcie');
     if (entry.isAutoClosed) return t('workCard.entryAutoClosed', 'Zamkniete automatycznie');
@@ -127,6 +142,15 @@ export const WorkerWorkCardPage = () => {
       setManualWorkTypeId(manualTypes[0].id);
     }
   }, [manualTypes, manualWorkTypeId]);
+
+  useEffect(() => {
+    setCloseAt(extractTime(toIsoNow()));
+    setCloseTarget('');
+    setCloseComment('');
+    if (transferTypes.length > 0 && (!closeTargetWorkTypeId || !transferTypes.some((entry) => entry.id === closeTargetWorkTypeId))) {
+      setCloseTargetWorkTypeId(transferTypes[0].id);
+    }
+  }, [dateKey, day?.id, transferTypes, closeTargetWorkTypeId]);
 
   if (!user) return null;
   if (loading) return <Loader text={t('common.loading')} />;
@@ -145,11 +169,11 @@ export const WorkerWorkCardPage = () => {
     setSaving(true);
     setError('');
     try {
-      if (!isQuarterHourTime(startAt) || !isQuarterHourTime(plannedEndAt)) {
+      if (!isQuarterHourTime(startAt)) {
         throw new Error(t('workCard.halfHourValidation', 'Wybierz czas co 15 minut (np. 06:00, 06:15, 06:30, 06:45).'));
       }
       const actualStartIso = toIsoByDateAndTime(dateKey, startAt);
-      const plannedEndIso = toIsoByDateAndTime(dateKey, plannedEndAt);
+      const plannedEndIso = toIsoByDateAndTime(dateKey, addMinutesToDateKeyTime(dateKey, startAt, defaultShiftMinutes));
       const nowIso = toIsoNow();
       const nowMs = new Date(nowIso).getTime();
 
@@ -273,34 +297,21 @@ export const WorkerWorkCardPage = () => {
     }
   };
 
-  const onUpdatePlannedEnd = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!day) return;
-    setSaving(true);
-    setError('');
-    try {
-      if (!isQuarterHourTime(plannedEndDraft)) {
-        throw new Error(t('workCard.halfHourValidation', 'Wybierz czas co 15 minut (np. 06:00, 06:15, 06:30, 06:45).'));
-      }
-      await getRepository().updateWorkDayPlannedEnd(day.id, toIsoByDateAndTime(day.date, plannedEndDraft), user);
-      setNotice('Planowane zakończenie zaktualizowane');
-      setShowPlannedEndForm(false);
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Nie udało się zaktualizować grafiku');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const closeDay = async () => {
     if (!day) return;
     setSaving(true);
     setError('');
     try {
-      await getRepository().closeWorkDay(day.id, toIsoByDateAndTime(day.date, closeAt), user);
+      const payload: CloseWorkDayPayload = {
+        actualEnd: toIsoByDateAndTime(day.date, closeAt),
+        exitTarget: requiresExitReason ? closeTarget || undefined : undefined,
+        exitWorkTypeId: requiresExitReason && closeTarget === 'other_process' ? closeTargetWorkTypeId : undefined,
+        exitComment: closeComment || undefined
+      };
+      await getRepository().closeWorkDay(day.id, payload, user);
       setNotice('Dzień pracy został zamknięty');
-      setCloseWarningMinutes(null);
+      setCloseTarget('');
+      setCloseComment('');
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Nie udało się zamknąć dnia');
@@ -315,10 +326,12 @@ export const WorkerWorkCardPage = () => {
       setError(t('workCard.halfHourValidation', 'Wybierz czas co 15 minut (np. 06:00, 06:15, 06:30, 06:45).'));
       return;
     }
-    const actualEndIso = toIsoByDateAndTime(day.date, closeAt);
-    const evalResult = evaluateDayClose(day.plannedEnd, actualEndIso);
-    if (evalResult.earlyByMinutes > 15) {
-      setCloseWarningMinutes(evalResult.earlyByMinutes);
+    if (requiresExitReason && !closeTarget) {
+      setError(t('workCard.exitTargetRequired', 'Wybierz, dokąd idziesz po zakończeniu pracy na przyjęciach.'));
+      return;
+    }
+    if (requiresExitReason && closeTarget === 'other_process' && !closeTargetWorkTypeId) {
+      setError(t('workCard.exitWorkTypeRequired', 'Wybierz proces, do którego przechodzisz po przyjęciach.'));
       return;
     }
     await closeDay();
@@ -343,8 +356,6 @@ export const WorkerWorkCardPage = () => {
                 setNotice('');
                 setError('');
                 setShowManualForm(false);
-                setShowPlannedEndForm(false);
-                setCloseWarningMinutes(null);
                 setDateKey(event.target.value);
               }}
             />
@@ -376,8 +387,8 @@ export const WorkerWorkCardPage = () => {
               <Field label={t('workCard.actualStart', 'Faktyczny poczatek pracy')}>
                 <Input type="time" step={900} value={startAt} onChange={(event) => setStartAt(event.target.value)} required />
               </Field>
-              <Field label={t('workCard.plannedEnd', 'Planowane zakonczenie')}>
-                <Input type="time" step={900} value={plannedEndAt} onChange={(event) => setPlannedEndAt(event.target.value)} required />
+              <Field label={t('workCard.shiftEndEstimate', 'Szacowany koniec zmiany')}>
+                <Input value={addMinutesToDateKeyTime(dateKey, startAt, defaultShiftMinutes)} readOnly />
               </Field>
             </div>
             <div className={styles.infoBox}>
@@ -474,7 +485,7 @@ export const WorkerWorkCardPage = () => {
                 <div>{formatDateTime(day.actualStart)}</div>
               </div>
               <div>
-                <div className="kpi">{t('workCard.plannedEndShort', 'Planowany koniec')}</div>
+                <div className="kpi">{t('workCard.plannedEndShort', 'Planowany koniec zmiany')}</div>
                 <div>{formatDateTime(day.plannedEnd)}</div>
               </div>
               <div>
@@ -495,6 +506,20 @@ export const WorkerWorkCardPage = () => {
               <div>
                 <div className="kpi">{t('workCard.gaps', 'Luki')}</div>
                 <div>{formatMinutes(day.totalGapMinutes)}</div>
+              </div>
+              <div>
+                <div className="kpi">{t('workCard.afterReceiving', 'Po przyjęciach')}</div>
+                <div>
+                  {day.exitTarget === 'home'
+                    ? t('workCard.goHome', 'Powrót do domu')
+                    : day.exitTarget === 'other_process'
+                      ? day.exitWorkTypeName ?? t('workCard.otherProcess', 'Inny proces')
+                      : '—'}
+                </div>
+              </div>
+              <div>
+                <div className="kpi">{t('workCard.exitComment', 'Komentarz / powód')}</div>
+                <div>{day.exitComment || '—'}</div>
               </div>
             </div>
           </Card>
@@ -580,69 +605,54 @@ export const WorkerWorkCardPage = () => {
             </Card>
           ) : null}
 
-          {showPlannedEndForm ? (
-            <Card compact>
-              <form onSubmit={onUpdatePlannedEnd} className="inlineActions rowActions">
-                <Field label={t('workCard.plannedEnd', 'Planowane zakonczenie')}>
-                  <Input type="time" step={900} value={plannedEndDraft} onChange={(event) => setPlannedEndDraft(event.target.value)} required />
-                </Field>
-                <Button type="submit" disabled={saving}>
-                  {t('common.update', 'Aktualizuj')}
-                </Button>
-                <Button type="button" variant="secondary" onClick={() => setShowPlannedEndForm(false)}>
-                  {t('common.cancel', 'Anuluj')}
-                </Button>
-              </form>
-            </Card>
-          ) : null}
-
-          {closeWarningMinutes !== null ? (
-            <Card compact>
-              <div className="stack">
-                <div>
-                  {t(
-                    'workCard.earlyCloseWarning',
-                    'Do planowanego zakonczenia pracy zostalo jeszcze'
-                  )}{' '}
-                  {closeWarningMinutes} {t('workCard.minutes', 'min')}.{' '}
-                  {t('workCard.earlyCloseCheck', 'Sprawdz prosze, czy grafik na dzisiaj jest ustawiony poprawnie.')}
-                </div>
-                <div className="inlineActions rowActions">
-                  <Button onClick={() => void closeDay()} disabled={saving}>
-                    {t('workCard.endNow', 'Zakoncz prace teraz')}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setCloseWarningMinutes(null);
-                      setShowPlannedEndForm(true);
-                    }}
-                  >
-                    {t('workCard.changeSchedule', 'Zmien grafik')}
-                  </Button>
-                  <Button variant="secondary" onClick={() => setCloseWarningMinutes(null)}>
-                    {t('common.cancel', 'Anuluj')}
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ) : null}
-
           <Card>
+            {requiresExitReason ? (
+              <div className={styles.infoBox} style={{ marginBottom: 12 }}>
+                {t('workCard.earlyCloseReasonInfo', 'Kończysz pracę na przyjęciach przed planowanym końcem zmiany. Wybierz, czy wracasz do domu, czy przechodzisz na inny proces.')}
+              </div>
+            ) : null}
             <div className={`inlineActions rowActions ${styles.dayActionsRow}`}>
               {isDayActive ? (
                 <>
                   <Button type="button" onClick={() => openCreateManual()}>
                     {t('workCard.addWork', 'Dodaj prace')}
                   </Button>
-                  <Button type="button" variant="secondary" onClick={() => setShowPlannedEndForm((value) => !value)}>
-                    {t('workCard.editPlannedEnd', 'Zmien planowane zakonczenie')}
-                  </Button>
                   <div className={styles.closeTimeField}>
                     <Field label={t('workCard.closeAt', 'Zakoncz o')}>
                       <Input type="time" step={900} value={closeAt} onChange={(event) => setCloseAt(event.target.value)} />
                     </Field>
                   </div>
+                  {requiresExitReason ? (
+                    <>
+                      <div className={styles.exitField}>
+                        <Field label={t('workCard.whereNext', 'Dokąd po przyjęciach')}>
+                          <Select value={closeTarget} onChange={(event) => setCloseTarget(event.target.value as WorkDayExitTarget | '')}>
+                            <option value="">{t('workCard.selectExitTarget', 'Wybierz kierunek')}</option>
+                            <option value="home">{t('workCard.goHome', 'Powrót do domu')}</option>
+                            <option value="other_process">{t('workCard.otherProcess', 'Inny proces')}</option>
+                          </Select>
+                        </Field>
+                      </div>
+                      {closeTarget === 'other_process' ? (
+                        <div className={styles.exitField}>
+                          <Field label={t('workCard.nextProcess', 'Na jaki proces przechodzisz')}>
+                            <Select value={closeTargetWorkTypeId} onChange={(event) => setCloseTargetWorkTypeId(event.target.value)}>
+                              {transferTypes.map((type) => (
+                                <option key={type.id} value={type.id}>
+                                  {type.name}
+                                </option>
+                              ))}
+                            </Select>
+                          </Field>
+                        </div>
+                      ) : null}
+                      <div className={styles.exitCommentField}>
+                        <Field label={t('workCard.exitComment', 'Komentarz / powód')}>
+                          <Input value={closeComment} onChange={(event) => setCloseComment(event.target.value)} />
+                        </Field>
+                      </div>
+                    </>
+                  ) : null}
                   <Button type="button" variant="secondary" onClick={() => void onTryCloseDay()}>
                     {t('workCard.endDay', 'Zakoncz dzien')}
                   </Button>

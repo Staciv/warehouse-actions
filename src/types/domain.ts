@@ -27,6 +27,7 @@ export type ProblemStatus = 'new' | 'in_progress' | 'resolved' | 'rejected';
 export type WorkDayStatus = 'active' | 'closed';
 export type WorkLogSource = 'manual' | 'action';
 export type WorkTypeCategory = 'manual' | 'pre_shift' | 'gap_fill' | 'system';
+export type WorkDayExitTarget = 'home' | 'other_process';
 
 export type DataMode = 'firebase' | 'mock';
 
@@ -143,6 +144,10 @@ export interface WorkDay extends BaseEntity {
   actualEnd?: string;
   countedEnd?: string;
   plannedEnd: string;
+  exitTarget?: WorkDayExitTarget;
+  exitWorkTypeId?: string;
+  exitWorkTypeName?: string;
+  exitComment?: string;
   status: WorkDayStatus;
   totalPresenceMinutes: number;
   totalWorkedMinutes: number;

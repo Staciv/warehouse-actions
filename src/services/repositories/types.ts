@@ -9,6 +9,7 @@ import type {
   ProblemStatus,
   User,
   WorkDay,
+  WorkDayExitTarget,
   WorkLogEntry,
   WorkTypeDictionary,
   WorkSession
@@ -98,6 +99,13 @@ export interface StartWorkDayPayload {
   preShiftIntervals: WorkDayIntervalInput[];
 }
 
+export interface CloseWorkDayPayload {
+  actualEnd: string;
+  exitTarget?: WorkDayExitTarget;
+  exitWorkTypeId?: string;
+  exitComment?: string;
+}
+
 export interface AddManualWorkLogEntryPayload {
   workDayId: string;
   workerId: string;
@@ -156,7 +164,7 @@ export interface Repository {
   getWorkDays: (filters: WorkDaysFilters | undefined, actor: User) => Promise<WorkDay[]>;
   startWorkDay: (payload: StartWorkDayPayload, actor: User) => Promise<WorkDay>;
   updateWorkDayPlannedEnd: (workDayId: string, plannedEnd: string, actor: User) => Promise<WorkDay>;
-  closeWorkDay: (workDayId: string, actualEnd: string, actor: User) => Promise<WorkDay>;
+  closeWorkDay: (workDayId: string, payload: CloseWorkDayPayload, actor: User) => Promise<WorkDay>;
   getWorkLogEntries: (workDayId: string, actor: User) => Promise<WorkLogEntry[]>;
   addManualWorkLogEntry: (payload: AddManualWorkLogEntryPayload, actor: User) => Promise<WorkLogEntry>;
   updateManualWorkLogEntry: (entryId: string, payload: UpdateManualWorkLogEntryPayload, actor: User) => Promise<WorkLogEntry>;

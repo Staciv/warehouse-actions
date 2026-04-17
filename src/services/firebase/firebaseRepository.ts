@@ -1111,18 +1111,30 @@ export class FirebaseRepository implements Repository {
     return next;
   }
 
-  async closeWorkDay(workDayId: string, actualEnd: string, actor: User) {
+  async closeWorkDay(workDayId: string, payload: import('../repositories/types').CloseWorkDayPayload, actor: User) {
     const day = await readById<WorkDay>(collections.workDays, workDayId);
     if (!day) throw new Error('Nie znaleziono karty pracy');
     assertCanAccessWorkerData(actor, day.workerId);
     const entries = await getWorkLogEntriesByDay(day.id);
     if (entries.some((entry) => !entry.endTime)) throw new Error('Nie można zamknąć dnia: aktywność jest nadal otwarta.');
     if (detectOverlaps(entries).length > 0) throw new Error('Nie można zamknąć dnia: wykryto nakładanie interwałów.');
-    const closeEval = evaluateDayClose(day.plannedEnd, actualEnd);
+    const closeEval = evaluateDayClose(day.plannedEnd, payload.actualEnd);
+    if (closeEval.earlyByMinutes > 0 && !payload.exitTarget) {
+      throw new Error('Wybierz, dokąd idziesz po zakończeniu pracy na przyjęciach.');
+    }
+    if (payload.exitTarget === 'other_process' && !payload.exitWorkTypeId) {
+      throw new Error('Wybierz proces, do którego przechodzisz po przyjęciach.');
+    }
+    const exitWorkType =
+      payload.exitWorkTypeId ? await readById<WorkTypeDictionary>(collections.workTypes, payload.exitWorkTypeId) : null;
     const next: WorkDay = {
       ...day,
-      actualEnd,
+      actualEnd: payload.actualEnd,
       countedEnd: closeEval.countedEnd,
+      exitTarget: payload.exitTarget,
+      exitWorkTypeId: payload.exitTarget === 'other_process' ? payload.exitWorkTypeId : undefined,
+      exitWorkTypeName: payload.exitTarget === 'other_process' ? exitWorkType?.name : undefined,
+      exitComment: payload.exitComment,
       status: 'closed',
       updatedAt: toIsoNow()
     };

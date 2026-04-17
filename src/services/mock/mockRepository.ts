@@ -1010,7 +1010,7 @@ export class MockRepository implements Repository {
     return day;
   }
 
-  async closeWorkDay(workDayId: string, actualEnd: string, actor: User) {
+  async closeWorkDay(workDayId: string, payload: import('../repositories/types').CloseWorkDayPayload, actor: User) {
     const db = await this.ensureDb();
     const day = db.workDays.find((entry) => entry.id === workDayId);
     if (!day) throw new Error('Nie znaleziono karty pracy');
@@ -1022,11 +1022,22 @@ export class MockRepository implements Repository {
     if (openEntry) throw new Error('Nie można zamknąć dnia: aktywność nadal trwa.');
     const overlaps = detectOverlaps(entries);
     if (overlaps.length > 0) throw new Error('Nie można zamknąć dnia: wykryto nakładanie interwałów.');
+    const closeEval = evaluateDayClose(day.plannedEnd, payload.actualEnd);
+    if (closeEval.earlyByMinutes > 0 && !payload.exitTarget) {
+      throw new Error('Wybierz, dokąd idziesz po zakończeniu pracy na przyjęciach.');
+    }
+    if (payload.exitTarget === 'other_process' && !payload.exitWorkTypeId) {
+      throw new Error('Wybierz proces, do którego przechodzisz po przyjęciach.');
+    }
+    const exitWorkType = payload.exitWorkTypeId ? db.workTypes.find((entry) => entry.id === payload.exitWorkTypeId) : undefined;
 
     const old = { ...day };
-    day.actualEnd = actualEnd;
-    const closeEval = evaluateDayClose(day.plannedEnd, actualEnd);
+    day.actualEnd = payload.actualEnd;
     day.countedEnd = closeEval.countedEnd;
+    day.exitTarget = payload.exitTarget;
+    day.exitWorkTypeId = payload.exitTarget === 'other_process' ? payload.exitWorkTypeId : undefined;
+    day.exitWorkTypeName = payload.exitTarget === 'other_process' ? exitWorkType?.name : undefined;
+    day.exitComment = payload.exitComment;
     day.status = 'closed';
     day.updatedAt = toIsoNow();
     this.recalculateWorkDay(db, day.id);

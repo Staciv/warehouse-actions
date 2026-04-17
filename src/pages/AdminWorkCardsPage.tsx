@@ -250,6 +250,20 @@ export const AdminWorkCardsPage = () => {
               <div className="kpi">Presence</div>
               <div>{formatMinutes(selectedDay.totalPresenceMinutes)}</div>
             </div>
+            <div>
+              <div className="kpi">Po przyjęciach</div>
+              <div>
+                {selectedDay.exitTarget === 'home'
+                  ? 'Dom'
+                  : selectedDay.exitTarget === 'other_process'
+                    ? selectedDay.exitWorkTypeName ?? 'Inny proces'
+                    : '—'}
+              </div>
+            </div>
+            <div>
+              <div className="kpi">Komentarz / powód</div>
+              <div>{selectedDay.exitComment || '—'}</div>
+            </div>
           </div>
           <div className={styles.warningGrid}>
             {overlaps.length > 0 ? <div className={styles.error}>Konflikty: {overlaps.length}</div> : null}
