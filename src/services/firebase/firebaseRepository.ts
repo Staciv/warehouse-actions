@@ -168,9 +168,60 @@ const getWorkDayByWorkerAndDate = async (workerId: string, dateKey: string) => {
   return snap.docs[0].data() as WorkDay;
 };
 
+const getActiveWorkDayByWorkerAndDate = async (workerId: string, dateKey: string) => {
+  const day = await getWorkDayByWorkerAndDate(workerId, dateKey);
+  return day?.status === 'active' ? day : null;
+};
+
 const getWorkLogEntriesByDay = async (workDayId: string) => {
   const snap = await getDocs(query(collection(getDb(), collections.workLogEntries), where('workDayId', '==', workDayId)));
   return snap.docs.map((row) => row.data() as WorkLogEntry);
+};
+
+const requireActiveWorkDay = async (workerId: string, dateKey: string) => {
+  const day = await getActiveWorkDayByWorkerAndDate(workerId, dateKey);
+  if (!day) {
+    throw new Error('Najpierw otwórz aktywną kartę pracy na dzisiaj.');
+  }
+  return day;
+};
+
+const ensureWorkerHasNoOtherActiveExecutions = async (workerId: string, currentTaskId?: string) => {
+  const snap = await getDocs(
+    query(
+      collection(getDb(), collections.actionTasks),
+      where('participantWorkerIds', 'array-contains', workerId),
+      where('archived', '==', false),
+      where('status', '==', 'executing')
+    )
+  );
+
+  const otherActiveTask = snap.docs
+    .map((entry) => normalizeTaskRow(entry.data() as ActionTask))
+    .find((task) => task.id !== currentTaskId && task.remainingPallets > 0);
+
+  if (otherActiveTask) {
+    throw new Error(`Najpierw zakończ lub anuluj inną aktywną akcję: ${otherActiveTask.vehicleCode}.`);
+  }
+};
+
+const ensureWorkerHasNoActiveExecutionToCloseDay = async (workerId: string) => {
+  const snap = await getDocs(
+    query(
+      collection(getDb(), collections.actionTasks),
+      where('participantWorkerIds', 'array-contains', workerId),
+      where('archived', '==', false),
+      where('status', '==', 'executing')
+    )
+  );
+
+  const activeTask = snap.docs
+    .map((entry) => normalizeTaskRow(entry.data() as ActionTask))
+    .find((task) => task.remainingPallets > 0);
+
+  if (activeTask) {
+    throw new Error(`Nie można zamknąć dnia: nadal uczestniczysz w akcji ${activeTask.vehicleCode}.`);
+  }
 };
 
 export class FirebaseRepository implements Repository {
@@ -448,6 +499,10 @@ export class FirebaseRepository implements Repository {
 
   async startActionExecution(taskId: string, workerId: string, actor: User) {
     assertCanRecordWorkSession(actor, workerId);
+    const now = toIsoNow();
+    const dateKey = toDateKey(now);
+    const day = await requireActiveWorkDay(workerId, dateKey);
+    await ensureWorkerHasNoOtherActiveExecutions(workerId, taskId);
     const db = getDb();
     const taskRef = doc(db, collections.actionTasks, taskId);
     const workerRef = doc(db, collections.users, workerId);
@@ -502,27 +557,6 @@ export class FirebaseRepository implements Repository {
     await pushAudit('actionTask', taskId, 'start_execution', updated.oldTask, updated.newTask, actor);
     await pushAudit('user', workerId, 'worker_status_update', updated.oldWorker, updated.newWorker, actor);
 
-    const now = toIsoNow();
-    const dateKey = toDateKey(now);
-    const existingDay = await getWorkDayByWorkerAndDate(workerId, dateKey);
-    const day =
-      existingDay ??
-      withTimestamps({
-        id: createId(),
-        workerId,
-        workerName: updated.newWorker.displayName,
-        date: dateKey,
-        actualStart: `${dateKey}T00:00:00.000Z`,
-        plannedEnd: `${dateKey}T08:00:00.000Z`,
-        status: 'active' as const,
-        totalPresenceMinutes: 0,
-        totalWorkedMinutes: 0,
-        totalGapMinutes: 0
-      });
-    if (!existingDay) {
-      await putById(collections.workDays, day);
-      await pushAudit('workDay', day.id, 'auto_create', null, day, actor);
-    }
     const dayEntries = await getWorkLogEntriesByDay(day.id);
     const openEntry = dayEntries
       .filter((entry) => entry.workerId === workerId && !entry.endTime)
@@ -773,6 +807,8 @@ export class FirebaseRepository implements Repository {
 
   async createWorkSession(payload: CreateWorkSessionPayload, actor: User) {
     assertCanRecordWorkSession(actor, payload.workerId);
+    const dateKey = toDateKey(payload.startedAt);
+    const day = await requireActiveWorkDay(payload.workerId, dateKey);
     const db = getDb();
     const taskRef = doc(db, collections.actionTasks, payload.actionTaskId);
     const workerRef = doc(db, collections.users, payload.workerId);
@@ -852,27 +888,6 @@ export class FirebaseRepository implements Repository {
         await putById(collections.users, nextWorker);
         await pushAudit('user', participantId, 'worker_status_update', worker, nextWorker, actor);
       }
-    }
-
-    const dateKey = toDateKey(payload.startedAt);
-    const existingDay = await getWorkDayByWorkerAndDate(payload.workerId, dateKey);
-    const day =
-      existingDay ??
-      withTimestamps({
-        id: createId(),
-        workerId: payload.workerId,
-        workerName: createdSession.session.workerName,
-        date: dateKey,
-        actualStart: `${dateKey}T00:00:00.000Z`,
-        plannedEnd: `${dateKey}T08:00:00.000Z`,
-        status: 'active' as const,
-        totalPresenceMinutes: 0,
-        totalWorkedMinutes: 0,
-        totalGapMinutes: 0
-      });
-    if (!existingDay) {
-      await putById(collections.workDays, day);
-      await pushAudit('workDay', day.id, 'auto_create', null, day, actor);
     }
 
     const dayEntries = await getWorkLogEntriesByDay(day.id);
@@ -1037,6 +1052,9 @@ export class FirebaseRepository implements Repository {
     if (!worker) throw new Error('Nie znaleziono pracownika');
     const existing = await getWorkDayByWorkerAndDate(payload.workerId, payload.date);
     if (existing?.status === 'active') return existing;
+    if (existing?.status === 'closed') {
+      throw new Error('Karta pracy dla tego dnia została już zamknięta.');
+    }
     if (ensureEndAfterStart(payload.actualStart, payload.plannedEnd)) {
       throw new Error('Planowane zakończenie musi być późniejsze niż start pracy.');
     }
@@ -1091,6 +1109,7 @@ export class FirebaseRepository implements Repository {
       await putById(collections.workLogEntries, entry);
     }
     await pushAudit('workDay', day.id, 'start_day', null, day, actor);
+    emitDataSync(['workdays']);
     return day;
   }
 
@@ -1108,6 +1127,7 @@ export class FirebaseRepository implements Repository {
     };
     await putById(collections.workDays, next);
     await pushAudit('workDay', day.id, 'update_planned_end', day, next, actor);
+    emitDataSync(['workdays']);
     return next;
   }
 
@@ -1115,6 +1135,7 @@ export class FirebaseRepository implements Repository {
     const day = await readById<WorkDay>(collections.workDays, workDayId);
     if (!day) throw new Error('Nie znaleziono karty pracy');
     assertCanAccessWorkerData(actor, day.workerId);
+    await ensureWorkerHasNoActiveExecutionToCloseDay(day.workerId);
     const entries = await getWorkLogEntriesByDay(day.id);
     if (entries.some((entry) => !entry.endTime)) throw new Error('Nie można zamknąć dnia: aktywność jest nadal otwarta.');
     if (detectOverlaps(entries).length > 0) throw new Error('Nie można zamknąć dnia: wykryto nakładanie interwałów.');
@@ -1144,6 +1165,7 @@ export class FirebaseRepository implements Repository {
     next.totalPresenceMinutes = summary.totalPresenceMinutes;
     await putById(collections.workDays, next);
     await pushAudit('workDay', day.id, 'close_day', day, next, actor);
+    emitDataSync(['workdays']);
     return next;
   }
 
@@ -1186,6 +1208,7 @@ export class FirebaseRepository implements Repository {
     if (detectOverlaps([...existing, next]).length > 0) throw new Error('Nakładające się interwały nie są dozwolone.');
     await putById(collections.workLogEntries, next);
     await pushAudit('workLogEntry', next.id, 'create_manual', null, next, actor);
+    emitDataSync(['workdays']);
     return next;
   }
 
@@ -1219,6 +1242,7 @@ export class FirebaseRepository implements Repository {
     if (detectOverlaps(merged).length > 0) throw new Error('Nakładające się interwały nie są dozwolone.');
     await putById(collections.workLogEntries, next);
     await pushAudit('workLogEntry', next.id, 'update_manual', entry, next, actor);
+    emitDataSync(['workdays']);
     return next;
   }
 

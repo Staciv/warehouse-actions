@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Field } from '../components/ui/Field';
 import { Input } from '../components/ui/Input';
 import { EmptyState, Loader } from '../components/ui/States';
-import { formatDateTime, formatMinutes } from '../shared/utils/date';
+import { formatDateTime, formatMinutes, toIsoNow } from '../shared/utils/date';
 import { getRepository } from '../services/repositories';
 import type { UpdateActionTaskPayload } from '../services/repositories/types';
-import type { ActionTask, AuditLog, ProblemIssueType, ProblemReport, WorkSession } from '../types/domain';
+import type { ActionTask, AuditLog, ProblemIssueType, ProblemReport, WorkDay, WorkLogEntry, WorkSession } from '../types/domain';
 import styles from './page.module.css';
 import { useAuth } from '../features/auth/AuthContext';
 import { isAdminRole } from '../features/auth/guards';
@@ -21,6 +21,8 @@ import { Table } from '../components/ui/Table';
 import { ActionProgressBar } from '../features/live-ops/ActionProgressBar';
 import { Select } from '../components/ui/Select';
 import { TextArea } from '../components/ui/TextArea';
+import { subscribeDataSync } from '../shared/utils/dataSync';
+import { toDateKey } from '../entities/workday';
 
 export const ActionDetailsPage = () => {
   const { id } = useParams();
@@ -32,6 +34,8 @@ export const ActionDetailsPage = () => {
   const [sessions, setSessions] = useState<WorkSession[]>([]);
   const [problemReports, setProblemReports] = useState<ProblemReport[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [activeWorkDay, setActiveWorkDay] = useState<WorkDay | null>(null);
+  const [activeWorkDayEntries, setActiveWorkDayEntries] = useState<WorkLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editMode, setEditMode] = useState(false);
@@ -47,41 +51,66 @@ export const ActionDetailsPage = () => {
   const canManage = user ? isAdminRole(user.role) : false;
   const isWorkerParticipant = task && user ? task.participantWorkerIds.includes(user.id) : false;
   const canJoinOperation = user?.role === 'worker';
+  const hasActiveWorkDay = user?.role === 'worker' ? activeWorkDay?.status === 'active' : true;
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError('');
     try {
       const repository = getRepository();
-      const [taskRow, sessionsRows, problemRows, auditRows] = await Promise.all([
+      const [taskRow, sessionsRows, problemRows, auditRows, workDayRow] = await Promise.all([
         repository.getActionTaskById(id),
         repository.getWorkSessionsByTask(id),
         user ? repository.getProblemReports({ actionTaskId: id }, user) : Promise.resolve([]),
-        canManage && user ? repository.getAuditLogs('actionTask', id, user) : Promise.resolve([])
+        canManage && user ? repository.getAuditLogs('actionTask', id, user) : Promise.resolve([]),
+        user?.role === 'worker'
+          ? repository.getWorkDayByDate(user.id, toDateKey(toIsoNow()), user)
+          : Promise.resolve(null)
       ]);
       setTask(taskRow);
       setSessions(sessionsRows);
       setProblemReports(problemRows);
       setAuditLogs(auditRows);
+      setActiveWorkDay(workDayRow);
+      if (user?.role === 'worker' && workDayRow) {
+        const workDayEntries = await repository.getWorkLogEntries(workDayRow.id, user);
+        setActiveWorkDayEntries(workDayEntries);
+      } else {
+        setActiveWorkDayEntries([]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Błąd ładowania');
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, canManage, user]);
 
   useEffect(() => {
     void load();
-  }, [id, canManage, user?.id]);
+  }, [load]);
+
+  useEffect(() => {
+    return subscribeDataSync(['tasks', 'sessions', 'users', 'workdays', 'problems'], () => {
+      void load();
+    });
+  }, [load]);
 
   const totalDuration = useMemo(
     () => sessions.reduce((sum, session) => sum + session.durationMinutes, 0),
     [sessions]
   );
   useEffect(() => {
-    if (!user || user.role !== 'worker' || !task) {
+    if (!user || user.role !== 'worker' || !task || !isWorkerParticipant || task.status !== 'executing') {
       setWorkerEnteredAt(null);
+      return;
+    }
+
+    const openActionEntry = activeWorkDayEntries
+      .filter((entry) => entry.relatedActionId === task.id && !entry.endTime)
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
+    if (openActionEntry) {
+      setWorkerEnteredAt(openActionEntry.startTime);
       return;
     }
 
@@ -91,11 +120,8 @@ export const ActionDetailsPage = () => {
       setWorkerEnteredAt(stored);
       return;
     }
-
-    const nowIso = new Date().toISOString();
-    sessionStorage.setItem(key, nowIso);
-    setWorkerEnteredAt(nowIso);
-  }, [task, user]);
+    setWorkerEnteredAt(null);
+  }, [task, user, isWorkerParticipant, activeWorkDayEntries]);
 
   if (!user) return null;
   if (loading) return <Loader />;
@@ -116,6 +142,10 @@ export const ActionDetailsPage = () => {
     endedAt: string;
     comment?: string;
   }) => {
+    if (!hasActiveWorkDay) {
+      setError('Najpierw otwórz aktywną kartę pracy na dzisiaj.');
+      return;
+    }
     await getRepository().createWorkSession(
       {
         actionTaskId: task.id,
@@ -136,7 +166,15 @@ export const ActionDetailsPage = () => {
   };
 
   const startExecution = async () => {
+    if (!hasActiveWorkDay) {
+      setError('Najpierw otwórz aktywną kartę pracy na dzisiaj.');
+      return;
+    }
     await getRepository().startActionExecution(task.id, user.id, user);
+    const key = `wms_worker_action_entered_at_${user.id}_${task.id}`;
+    const startedAt = new Date().toISOString();
+    sessionStorage.setItem(key, startedAt);
+    setWorkerEnteredAt(startedAt);
     await load();
   };
 
@@ -254,7 +292,13 @@ export const ActionDetailsPage = () => {
         />
       ) : null}
 
-      {!isWorkerParticipant && task.remainingPallets > 0 && canJoinOperation ? (
+      {canJoinOperation && !hasActiveWorkDay ? (
+        <Card>
+          <div className="kpi">Najpierw otwórz aktywną kartę pracy na dzisiaj. Po zamknięciu dnia nie można już wykonywać akcji.</div>
+        </Card>
+      ) : null}
+
+      {!isWorkerParticipant && task.remainingPallets > 0 && canJoinOperation && hasActiveWorkDay ? (
         <Card>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
             <div className="kpi">Następny krok: ustaw operację na status „W realizacji”</div>
@@ -263,7 +307,7 @@ export const ActionDetailsPage = () => {
         </Card>
       ) : null}
 
-      {isWorkerParticipant && task.remainingPallets > 0 && canJoinOperation ? (
+      {isWorkerParticipant && task.remainingPallets > 0 && canJoinOperation && hasActiveWorkDay ? (
         <Card>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
             <div className="kpi">Uczestniczysz w realizacji tej akcji</div>
@@ -274,7 +318,7 @@ export const ActionDetailsPage = () => {
         </Card>
       ) : null}
 
-      {task.remainingPallets > 0 && isWorkerParticipant && task.status === 'executing' ? (
+      {task.remainingPallets > 0 && isWorkerParticipant && task.status === 'executing' && hasActiveWorkDay ? (
         <WorkSessionForm task={task} fixedStartedAt={workerEnteredAt ?? new Date().toISOString()} onSubmit={saveWorkSession} />
       ) : null}
 

@@ -184,25 +184,41 @@ export class MockRepository implements Repository {
     localStorage.setItem(MOCK_DB_STORAGE_KEY, JSON.stringify(this.db));
   }
 
-  private getOrCreateWorkDay(db: MockDb, worker: User, dateKey: string, actor: User) {
-    let day = db.workDays.find((entry) => entry.workerId === worker.id && entry.date === dateKey && entry.status === 'active');
-    if (day) return day;
-
-    day = nowStampedWorkDay({
-      id: createId(),
-      workerId: worker.id,
-      workerName: worker.displayName,
-      date: dateKey,
-      actualStart: `${dateKey}T00:00:00.000Z`,
-      plannedEnd: `${dateKey}T08:00:00.000Z`,
-      status: 'active',
-      totalPresenceMinutes: 0,
-      totalWorkedMinutes: 0,
-      totalGapMinutes: 0
-    });
-    db.workDays.push(day);
-    db.auditLogs.push(createAudit('workDay' as AuditLog['entityType'], day.id, 'auto_create', null, day, actor));
+  private requireActiveWorkDay(db: MockDb, workerId: string, dateKey: string) {
+    const day = db.workDays.find((entry) => entry.workerId === workerId && entry.date === dateKey && entry.status === 'active');
+    if (!day) {
+      throw new Error('Najpierw otwórz aktywną kartę pracy na dzisiaj.');
+    }
     return day;
+  }
+
+  private ensureWorkerHasNoOtherActiveExecutions(db: MockDb, workerId: string, currentTaskId?: string) {
+    const otherActiveTask = db.actionTasks.find(
+      (entry) =>
+        entry.id !== currentTaskId &&
+        !entry.archived &&
+        entry.status === 'executing' &&
+        entry.remainingPallets > 0 &&
+        entry.participantWorkerIds.includes(workerId)
+    );
+
+    if (otherActiveTask) {
+      throw new Error(`Najpierw zakończ lub anuluj inną aktywną akcję: ${otherActiveTask.vehicleCode}.`);
+    }
+  }
+
+  private ensureWorkerHasNoActiveExecutionToCloseDay(db: MockDb, workerId: string) {
+    const activeTask = db.actionTasks.find(
+      (entry) =>
+        !entry.archived &&
+        entry.status === 'executing' &&
+        entry.remainingPallets > 0 &&
+        entry.participantWorkerIds.includes(workerId)
+    );
+
+    if (activeTask) {
+      throw new Error(`Nie można zamknąć dnia: nadal uczestniczysz w akcji ${activeTask.vehicleCode}.`);
+    }
   }
 
   private recalculateWorkDay(db: MockDb, workDayId: string) {
@@ -457,6 +473,10 @@ export class MockRepository implements Repository {
   async startActionExecution(taskId: string, workerId: string, actor: User) {
     const db = await this.ensureDb();
     assertCanRecordWorkSession(actor, workerId);
+    const now = toIsoNow();
+    const dateKey = toDateKey(now);
+    const workDay = this.requireActiveWorkDay(db, workerId, dateKey);
+    this.ensureWorkerHasNoOtherActiveExecutions(db, workerId, taskId);
     const task = db.actionTasks.find((entry) => entry.id === taskId);
     if (!task) throw new Error('Nie znaleziono operacji');
     if (task.archived || task.status === 'archived' || task.status === 'cancelled') {
@@ -492,9 +512,6 @@ export class MockRepository implements Repository {
     worker.availabilityStatus = task.status === 'completed' ? 'completed' : 'in_action';
     worker.updatedAt = toIsoNow();
 
-    const now = toIsoNow();
-    const dateKey = toDateKey(now);
-    const workDay = this.getOrCreateWorkDay(db, worker, dateKey, actor);
     this.closeOpenEntryIfNeeded(db, worker.id, now);
     db.workLogEntries.push(
       nowStampedWorkLogEntry({
@@ -700,6 +717,8 @@ export class MockRepository implements Repository {
   async createWorkSession(payload: CreateWorkSessionPayload, actor: User) {
     const db = await this.ensureDb();
     assertCanRecordWorkSession(actor, payload.workerId);
+    const workDayDateKey = toDateKey(payload.startedAt);
+    const workDay = this.requireActiveWorkDay(db, payload.workerId, workDayDateKey);
     const task = db.actionTasks.find((item) => item.id === payload.actionTaskId);
     if (!task) throw new Error('Nie znaleziono akcji');
     assertTaskAcceptsWorkSession(task, payload.workerId);
@@ -742,8 +761,6 @@ export class MockRepository implements Repository {
     task.updatedAt = toIsoNow();
 
     db.workSessions.push(session);
-    const workDayDateKey = toDateKey(payload.startedAt);
-    const workDay = this.getOrCreateWorkDay(db, worker, workDayDateKey, actor);
     let actionEntry = db.workLogEntries
       .filter((entry) => entry.workDayId === workDay.id && entry.relatedActionId === task.id)
       .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
@@ -930,6 +947,10 @@ export class MockRepository implements Repository {
       (entry) => entry.workerId === payload.workerId && entry.date === payload.date && entry.status === 'active'
     );
     if (existingActive) return existingActive;
+    const existingClosed = db.workDays.find(
+      (entry) => entry.workerId === payload.workerId && entry.date === payload.date && entry.status === 'closed'
+    );
+    if (existingClosed) throw new Error('Karta pracy dla tego dnia została już zamknięta.');
 
     if (ensureEndAfterStart(payload.actualStart, payload.plannedEnd)) {
       throw new Error('Planowane zakończenie musi być późniejsze niż start pracy.');
@@ -988,6 +1009,7 @@ export class MockRepository implements Repository {
     this.recalculateWorkDay(db, day.id);
     db.auditLogs.push(createAudit('workDay' as AuditLog['entityType'], day.id, 'start_day', null, day, actor));
     this.persist();
+    emitDataSync(['workdays']);
     return day;
   }
 
@@ -1007,6 +1029,7 @@ export class MockRepository implements Repository {
     day.updatedAt = toIsoNow();
     db.auditLogs.push(createAudit('workDay' as AuditLog['entityType'], day.id, 'update_planned_end', old, day, actor));
     this.persist();
+    emitDataSync(['workdays']);
     return day;
   }
 
@@ -1016,6 +1039,7 @@ export class MockRepository implements Repository {
     if (!day) throw new Error('Nie znaleziono karty pracy');
     assertCanAccessWorkerData(actor, day.workerId);
     if (day.status === 'closed') return day;
+    this.ensureWorkerHasNoActiveExecutionToCloseDay(db, day.workerId);
 
     const entries = db.workLogEntries.filter((entry) => entry.workDayId === day.id);
     const openEntry = entries.find((entry) => !entry.endTime);
@@ -1043,6 +1067,7 @@ export class MockRepository implements Repository {
     this.recalculateWorkDay(db, day.id);
     db.auditLogs.push(createAudit('workDay' as AuditLog['entityType'], day.id, 'close_day', old, day, actor));
     this.persist();
+    emitDataSync(['workdays']);
     return day;
   }
 
@@ -1092,6 +1117,7 @@ export class MockRepository implements Repository {
     this.recalculateWorkDay(db, day.id);
     db.auditLogs.push(createAudit('workLogEntry' as AuditLog['entityType'], next.id, 'create_manual', null, next, actor));
     this.persist();
+    emitDataSync(['workdays']);
     return next;
   }
 
@@ -1129,6 +1155,7 @@ export class MockRepository implements Repository {
     this.recalculateWorkDay(db, day.id);
     db.auditLogs.push(createAudit('workLogEntry' as AuditLog['entityType'], entry.id, 'update_manual', old, entry, actor));
     this.persist();
+    emitDataSync(['workdays']);
     return entry;
   }
 

@@ -131,7 +131,11 @@ export const WorkerWorkCardPage = () => {
     return source.filter((entry) => entry.category !== 'system');
   }, [workTypes]);
   const transferTypes = useMemo(
-    () => workTypes.filter((entry) => entry.category === 'manual' || entry.category === 'pre_shift'),
+    () => {
+      const activeTypes = workTypes.filter((entry) => entry.isActive);
+      const source = activeTypes.length > 0 ? activeTypes : fallbackWorkTypes.filter((entry) => entry.isActive);
+      return source.filter((entry) => entry.category === 'manual' || entry.category === 'pre_shift');
+    },
     [workTypes]
   );
   const isDayActive = day?.status === 'active';
